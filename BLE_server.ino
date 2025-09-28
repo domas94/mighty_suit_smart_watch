@@ -31,48 +31,61 @@ BLECharacteristic *read_characteristic;
 
 class MyCallbacks : public BLECharacteristicCallbacks
 {
-  void onWrite(BLECharacteristic *write_characteristic)
-  {
-    std::string write_value = write_characteristic->getValue();
+    void onWrite(BLECharacteristic *write_characteristic)
+    {
+      std::string write_value = write_characteristic->getValue();
 
-    if (write_value.length() > 0) {
-    Serial.println("*********");
-    Serial.print("New value: ");
-    write_value.c_str();
-    if(write_value[1] == 0x01)
-      {
-      
-      response_array[0]=0x01;
-      response_array[1]=0x01;
-      response_array[2]=0x0E;
-      response_array[3]=0x01;
-      response_array[4]=0x02;
-      response_array[5]=0x03;
-      response_array[6]=0x04;
-      response_array[7]=0x18;
-      response_array[8]=0x19;
-      response_array[9]=0x1A;
-      response_array[10]=0x1B;
-      response_array[11]=0x1C;
-      response_array[12]=0x1D;
-      response_array[13]=0x1E;
-      response_array[14]=0x1F;
-      response_array[15]=0x20;
-      response_array[16]=0x21;
-  
-      read_characteristic->setValue(response_array);
+      if (write_value.length() > 0) {
+        Serial.println("*********");
+        Serial.print("New value: ");
+        write_value.c_str();
+        memset(response_array, 0, sizeof(response_array));
+        // Identify capability
+        if (write_value[1] == 0x01)
+        {
+          // promijeniti u 00, ako se pošalje 00 onda se niš ne vidi
+          response_array[0] = 0x01;
+          response_array[1] = 0x01;
+          response_array[2] = 0x0E;
+          response_array[3] = 0x01;
+          response_array[4] = 0x02;
+          response_array[5] = 0x03;
+          response_array[6] = 0x04;
+          response_array[7] = 0x18;
+          response_array[8] = 0x19;
+          response_array[9] = 0x1A;
+          response_array[10] = 0x1B;
+          response_array[11] = 0x1C;
+          response_array[12] = 0x1D;
+          response_array[13] = 0x1E;
+          response_array[14] = 0x1F;
+          response_array[15] = 0x20;
+          response_array[16] = 0x21;
+        }
+        // FW version
+        if (write_value[1] == 0x04)
+        {
+          // promijeniti u 00, ako se pošalje 00 onda se niš ne vidi
+          response_array[0] = 0x01;
+          response_array[1] = 0x04;
+          response_array[2] = 0x01;
+          response_array[3] = 0x02;
+          response_array[4] = 0x03;
+          response_array[5] = 0x04;
+
+        }
+        read_characteristic->setValue(response_array);
+
+        for (int i = 0; i < write_value.length(); i++)
+          Serial.print(write_value[i]);
+        Serial.println();
+        Serial.println("*********");
       }
-      
-    for (int i = 0; i < write_value.length(); i++)
-        Serial.print(write_value[i]);
-    Serial.println();
-    Serial.println("*********");
-}
 
-if (write_value.length() <= 0) {
-    return;
-}
-  }
+      if (write_value.length() <= 0) {
+        return;
+      }
+    }
 };
 
 // bool setDateTimeFormBLE(const char *str)
@@ -137,21 +150,21 @@ void setupBLE(void)
   BLEServer *pServer = BLEDevice::createServer();
   BLEService *pService = pServer->createService(SERVICE_UUID);
   read_characteristic = pService->createCharacteristic(
-      WRITE_UUID,
-      BLECharacteristic::PROPERTY_READ |
-          BLECharacteristic::PROPERTY_WRITE |
-          BLECharacteristic::PROPERTY_NOTIFY);
+                          WRITE_UUID,
+                          BLECharacteristic::PROPERTY_READ |
+                          BLECharacteristic::PROPERTY_WRITE |
+                          BLECharacteristic::PROPERTY_NOTIFY);
   BLECharacteristic *write_characteristic = pService->createCharacteristic(
-      READ_UUID,
-      BLECharacteristic::PROPERTY_READ |
-          BLECharacteristic::PROPERTY_WRITE);
+        READ_UUID,
+        BLECharacteristic::PROPERTY_READ |
+        BLECharacteristic::PROPERTY_WRITE);
 
   write_characteristic->setCallbacks(new MyCallbacks());
   read_characteristic->setValue("read char");
   write_characteristic->setValue("write char");
 
   BLEDescriptor *desc = new BLEDescriptor(
-      BLEUUID((uint16_t)0x2901)); // User Description Descriptor
+    BLEUUID((uint16_t)0x2901)); // User Description Descriptor
   desc->setValue("Read Characteristic");
   read_characteristic->addDescriptor(desc);
   pService->start();
@@ -188,19 +201,19 @@ void setup()
   Serial.begin(115200);
   Serial.println("Starting BLE work!");
 
-   // Get watch instance
-    //ttgo = TTGOClass::getWatch();
-    // Initialize the hardware
-    //ttgo->begin();
-    // Turn on the backlight
-    //ttgo->openBL();
-    //  Receive as a local variable for easy writing
-    //rtc = ttgo->rtc;
-    //tft = ttgo->tft;
+  // Get watch instance
+  //ttgo = TTGOClass::getWatch();
+  // Initialize the hardware
+  //ttgo->begin();
+  // Turn on the backlight
+  //ttgo->openBL();
+  //  Receive as a local variable for easy writing
+  //rtc = ttgo->rtc;
+  //tft = ttgo->tft;
 
-    // Time check will be done, if the time is incorrect, it will be set to compile time
-    //rtc->check();
-    setupBLE();
+  // Time check will be done, if the time is incorrect, it will be set to compile time
+  //rtc->check();
+  setupBLE();
 
   // Draw initial connection status
   //drawSTATUS(false);
@@ -208,30 +221,30 @@ void setup()
 
 void loop()
 {
-    // disconnected
-    if (!deviceConnected && oldDeviceConnected) {
-        oldDeviceConnected = deviceConnected;
-        Serial.println("Draw deviceDisconnected");
-        //drawSTATUS(false);
-    }
+  // disconnected
+  if (!deviceConnected && oldDeviceConnected) {
+    oldDeviceConnected = deviceConnected;
+    Serial.println("Draw deviceDisconnected");
+    //drawSTATUS(false);
+  }
 
-    // connecting
-    if (deviceConnected && !oldDeviceConnected) {
-        // do stuff here on connecting
-        oldDeviceConnected = deviceConnected;
-        Serial.println("Draw deviceConnected");
-        //drawSTATUS(true);
-    }
+  // connecting
+  if (deviceConnected && !oldDeviceConnected) {
+    // do stuff here on connecting
+    oldDeviceConnected = deviceConnected;
+    Serial.println("Draw deviceConnected");
+    //drawSTATUS(true);
+  }
 
-    if (millis() - interval > 1000)
-    {
+  if (millis() - interval > 1000)
+  {
 
-        interval = millis();
+    interval = millis();
 
-        //tft->setTextColor(TFT_RED, TFT_BLACK);
+    //tft->setTextColor(TFT_RED, TFT_BLACK);
 
-        //tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 50, 200, 4);
+    //tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 50, 200, 4);
 
-        //tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 5, 118, 7);
-    }
+    //tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 5, 118, 7);
+  }
 }
