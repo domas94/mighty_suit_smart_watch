@@ -10,3 +10,5 @@
 
 #include <LilyGoWatch.h>
 
+// uncomment when GUI is used
+#define LILYGO_WATCH_LVGL                   //To use LVGL, you need to enable the macro LVGL
