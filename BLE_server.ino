@@ -9,13 +9,15 @@
 #include <BLEServer.h>
 #include "config.h"
 
-//TTGOClass *ttgo;
-//TFT_eSPI *tft;
-//PCF8563_Class *rtc;
+TTGOClass *ttgo;
+TFT_eSPI *tft;
+PCF8563_Class *rtc;
 
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
 uint32_t interval = 0;
+byte page = 0;
+byte max_pages = 1;
 
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
@@ -41,38 +43,81 @@ class MyCallbacks : public BLECharacteristicCallbacks
         write_value.c_str();
         memset(response_array, 0, sizeof(response_array));
         // Identify capability
+               // Identify capability
         if (write_value[1] == 0x01)
         {
-          // promijeniti u 00, ako se pošalje 00 onda se niš ne vidi
           response_array[0] = 0x01;
-          response_array[1] = 0x01;
-          response_array[2] = 0x0E;
-          response_array[3] = 0x01;
-          response_array[4] = 0x02;
-          response_array[5] = 0x03;
-          response_array[6] = 0x04;
-          response_array[7] = 0x18;
-          response_array[8] = 0x19;
-          response_array[9] = 0x1A;
-          response_array[10] = 0x1B;
-          response_array[11] = 0x1C;
-          response_array[12] = 0x1D;
-          response_array[13] = 0x1E;
-          response_array[14] = 0x1F;
-          response_array[15] = 0x20;
-          response_array[16] = 0x21;
-        }
-        // FW version
-        if (write_value[1] == 0x04)
-        {
-          // promijeniti u 00, ako se pošalje 00 onda se niš ne vidi
-          response_array[0] = 0x01;
-          response_array[1] = 0x04;
+          response_array[1] = 0x0E;
           response_array[2] = 0x01;
           response_array[3] = 0x02;
           response_array[4] = 0x03;
           response_array[5] = 0x04;
+          response_array[6] = 0x18;
+          response_array[7] = 0x19;
+          response_array[8] = 0x1A;
+          response_array[9] = 0x1B;
+          response_array[10] = 0x1C;
+          response_array[11] = 0x1D;
+          response_array[12] = 0x1D;
+          response_array[13] = 0x1E;
+          response_array[14] = 0x20;
+          response_array[15] = 0x21;
+        }
+        int level;
+        // Battery level in %
+        if (write_value[1] == 0x02)
+        {
+          level = ttgo->power->getBattPercentage();
+          response_array[0] = 0x02;
+          response_array[1] = 0x01;
+          response_array[2] = level;
+          Serial.println(level);
 
+        }
+        // Battery level in mV
+        if (write_value[1] == 0x03)
+        {
+          level = ttgo->power->getBattVoltage();
+          response_array[0] = 0x03;
+          response_array[1] = 0x02;
+          response_array[2] = level;
+          response_array[3] = level>>2;
+
+        }
+        // 
+        // FW version
+        if (write_value[1] == 0x04)
+        {
+          response_array[0] = 0x02;
+          response_array[1] = 0x06;
+          response_array[2] = 0x04;
+          response_array[3] = 0x00;
+          response_array[4] = 0x03;
+          response_array[5] = 0x01;
+          response_array[5] = 0x00;
+          response_array[5] = 0x01;
+        }
+
+        // Set number of watch pages
+        if (write_value[1] == 0x11)
+        {
+
+          response_array[0] = 0x11;
+          response_array[1] = 0x02;
+          response_array[2] = 0x00;
+          response_array[3] = 0x00;
+          if(write_value[2] > 1 && write_value[2] < 8)
+          {
+              max_pages = write_value[2];
+          }
+          if(write_value[2] < 1)
+          {
+              response_array[2] = 0x0C;
+          }
+          if(write_value[2] > 8)
+          {
+              response_array[2] = 0x0D;
+          }
         }
         read_characteristic->setValue(response_array);
 
@@ -179,22 +224,22 @@ void setupBLE(void)
   Serial.println("Characteristic defined! Now you can read it in your phone!");
 }
 
-// void drawSTATUS(bool status)
-// {
-//     String str = status ? "Connection" : "Disconnect";
-//     int16_t cW = tft->textWidth("Connection", 2);
-//     int16_t dW = tft->textWidth("Disconnect", 2);
-//     int16_t w = cW > dW ? cW : dW;
-//     w += 6;
-//     int16_t x = 160;
-//     int16_t y = 20;
-//     int16_t h = tft->fontHeight(2) + 4;
-//     uint16_t col = status ? TFT_GREEN : TFT_GREY;
-//     tft->fillRoundRect(x, y, w, h, 3, col);
-//     tft->setTextColor(TFT_BLACK, col);
-//     tft->setTextFont(2);
-//     tft->drawString(str, x + 2, y);
-// }
+void drawSTATUS(bool status)
+{
+    String str = status ? "Connection" : "Disconnect";
+    int16_t cW = tft->textWidth("Connection", 2);
+    int16_t dW = tft->textWidth("Disconnect", 2);
+    int16_t w = cW > dW ? cW : dW;
+    w += 6;
+    int16_t x = 160;
+    int16_t y = 20;
+    int16_t h = tft->fontHeight(2) + 4;
+    uint16_t col = status ? TFT_GREEN : TFT_GREY;
+    tft->fillRoundRect(x, y, w, h, 3, col);
+    tft->setTextColor(TFT_BLACK, col);
+    tft->setTextFont(2);
+    tft->drawString(str, x + 2, y);
+}
 
 void setup()
 {
@@ -202,21 +247,21 @@ void setup()
   Serial.println("Starting BLE work!");
 
   // Get watch instance
-  //ttgo = TTGOClass::getWatch();
+  ttgo = TTGOClass::getWatch();
   // Initialize the hardware
-  //ttgo->begin();
+  ttgo->begin();
   // Turn on the backlight
-  //ttgo->openBL();
+  ttgo->openBL();
   //  Receive as a local variable for easy writing
-  //rtc = ttgo->rtc;
-  //tft = ttgo->tft;
+  rtc = ttgo->rtc;
+  tft = ttgo->tft;
 
   // Time check will be done, if the time is incorrect, it will be set to compile time
   //rtc->check();
   setupBLE();
 
   // Draw initial connection status
-  //drawSTATUS(false);
+  drawSTATUS(false);
 }
 
 void loop()
@@ -225,7 +270,7 @@ void loop()
   if (!deviceConnected && oldDeviceConnected) {
     oldDeviceConnected = deviceConnected;
     Serial.println("Draw deviceDisconnected");
-    //drawSTATUS(false);
+    drawSTATUS(false);
   }
 
   // connecting
@@ -233,7 +278,7 @@ void loop()
     // do stuff here on connecting
     oldDeviceConnected = deviceConnected;
     Serial.println("Draw deviceConnected");
-    //drawSTATUS(true);
+    drawSTATUS(true);
   }
 
   if (millis() - interval > 1000)
@@ -241,10 +286,12 @@ void loop()
 
     interval = millis();
 
-    //tft->setTextColor(TFT_RED, TFT_BLACK);
+    tft->setTextColor(TFT_RED, TFT_BLACK);
 
     //tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 50, 200, 4);
 
     //tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 5, 118, 7);
+
+    tft->fillScreen(TFT_BLACK);
   }
 }
