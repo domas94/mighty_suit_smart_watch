@@ -18,6 +18,8 @@ bool oldDeviceConnected = false;
 uint32_t interval = 0;
 byte page = 0;
 byte max_pages = 1;
+byte [8] page_values;
+
 
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
@@ -41,27 +43,30 @@ class MyCallbacks : public BLECharacteristicCallbacks
         Serial.println("*********");
         Serial.print("New value: ");
         write_value.c_str();
+        // clear response before setting new values
         memset(response_array, 0, sizeof(response_array));
+
+        //TODO: promijeniti u write_value[0], za sada je ovako lakše testirati preko mobitela
         // Identify capability
-               // Identify capability
         if (write_value[1] == 0x01)
         {
           response_array[0] = 0x01;
-          response_array[1] = 0x0E;
-          response_array[2] = 0x01;
-          response_array[3] = 0x02;
-          response_array[4] = 0x03;
-          response_array[5] = 0x04;
-          response_array[6] = 0x18;
-          response_array[7] = 0x19;
-          response_array[8] = 0x1A;
-          response_array[9] = 0x1B;
-          response_array[10] = 0x1C;
-          response_array[11] = 0x1D;
+          response_array[1] = 0x00;
+          response_array[2] = 0x0E;
+          response_array[3] = 0x01;
+          response_array[4] = 0x02;
+          response_array[5] = 0x03;
+          response_array[6] = 0x04;
+          response_array[7] = 0x18;
+          response_array[8] = 0x19;
+          response_array[9] = 0x1A;
+          response_array[10] = 0x1B;
+          response_array[11] = 0x1C;
           response_array[12] = 0x1D;
-          response_array[13] = 0x1E;
-          response_array[14] = 0x20;
-          response_array[15] = 0x21;
+          response_array[13] = 0x1D;
+          response_array[14] = 0x1E;
+          response_array[15] = 0x20;
+          response_array[16] = 0x21;
         }
         int level;
         // Battery level in %
@@ -69,8 +74,9 @@ class MyCallbacks : public BLECharacteristicCallbacks
         {
           level = ttgo->power->getBattPercentage();
           response_array[0] = 0x02;
-          response_array[1] = 0x01;
-          response_array[2] = level;
+          response_array[1] = 0x00;
+          response_array[2] = 0x01;
+          response_array[3] = level;
           Serial.println(level);
 
         }
@@ -79,44 +85,82 @@ class MyCallbacks : public BLECharacteristicCallbacks
         {
           level = ttgo->power->getBattVoltage();
           response_array[0] = 0x03;
-          response_array[1] = 0x02;
-          response_array[2] = level;
-          response_array[3] = level>>2;
+          response_array[1] = 0x00;
+          response_array[2] = 0x02;
+          response_array[3] = level;
+          response_array[4] = level>>2;
 
         }
-        // 
         // FW version
         if (write_value[1] == 0x04)
         {
           response_array[0] = 0x02;
-          response_array[1] = 0x06;
-          response_array[2] = 0x04;
-          response_array[3] = 0x00;
-          response_array[4] = 0x03;
-          response_array[5] = 0x01;
-          response_array[5] = 0x00;
-          response_array[5] = 0x01;
+          response_array[1] = 0x00;
+          response_array[2] = 0x06;
+          response_array[3] = 0x04;
+          response_array[4] = 0x00;
+          response_array[5] = 0x03;
+          response_array[6] = 0x01;
+          response_array[7] = 0x00;
+          response_array[8] = 0x01;
         }
-
         // Set number of watch pages
         if (write_value[1] == 0x11)
         {
-
           response_array[0] = 0x11;
-          response_array[1] = 0x02;
-          response_array[2] = 0x00;
+          response_array[1] = 0x00;
+          response_array[2] = 0x02;
           response_array[3] = 0x00;
-          if(write_value[2] > 1 && write_value[2] < 8)
+          response_array[4] = 0x00;
+
+          // check if the desired watch page number is out of limits
+          if(write_value[3] > 1 && write_value[3] < 8)
           {
               max_pages = write_value[2];
           }
-          if(write_value[2] < 1)
+          // Number of pages too low
+          if(write_value[3] < 1)
           {
               response_array[2] = 0x0C;
           }
-          if(write_value[2] > 8)
+          // Number of pages too high
+          if(write_value[3] > 8)
           {
               response_array[2] = 0x0D;
+          }
+        }
+        // Set number of page values
+        if (write_value[1] == 12)
+        {
+          response_array[0] = 0x12;
+          response_array[1] = 0x00;
+          response_array[2] = 0x02;
+          // accepted
+          response_array[3] = 0x00;
+          response_array[4] = 0x00;
+          // if page exists
+          if(write_value[3] > 1 && write_value[3] < max_pages)
+          {
+            // if correct number of values
+            if(write_value[4] > 1 && write_value[4] < 8)
+            {
+              page_values[write_value[3]] = write_value[4]; 
+            }
+            // number of values too low
+            if(write_value[4] > 8)
+            {
+              response_array[4] = 0x0E;
+            }
+            // number of values too high
+            if(write_value[4] < 1)
+            {
+              response_array[4] = 0x0F;
+            }
+          }
+          // page doesn't exist
+          if(write_value[3] < 1 || write_value[3] > max_pages) 
+          {
+              response_array[3] = 0x05;
           }
         }
         read_characteristic->setValue(response_array);
@@ -257,7 +301,7 @@ void setup()
   tft = ttgo->tft;
 
   // Time check will be done, if the time is incorrect, it will be set to compile time
-  //rtc->check();
+  rtc->check();
   setupBLE();
 
   // Draw initial connection status
@@ -292,6 +336,6 @@ void loop()
 
     //tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 5, 118, 7);
 
-    tft->fillScreen(TFT_BLACK);
+    tft->fillScreen(TFT_GOLD);
   }
 }
