@@ -18,7 +18,7 @@ bool oldDeviceConnected = false;
 uint32_t interval = 0;
 byte page = 0;
 byte max_pages = 1;
-byte [8] page_values;
+byte page_values[8];
 
 
 // See the following for generating UUIDs:
@@ -28,8 +28,85 @@ byte [8] page_values;
 #define READ_UUID "862c9860-0d89-4caf-8902-dc615e1181e9"
 #define WRITE_UUID "862c9860-1d89-4caf-8902-dc615e1181e9"
 #define TFT_GREY 0x5AEB
+#define LAYOUT_0 0
+#define LAYOUT_1 1
+#define LAYOUT_2 2
+#define LAYOUT_3 3
+#define LAYOUT_4 4
 
 char response_array[131];
+
+class ValueAttrs
+{
+private:
+    int _value;
+    String _desc;
+    String _unit;
+
+public:
+    // Constructor (runs automatically when object is created)
+    ValueAttrs()
+    {
+        _value = 0;
+        _desc = "";
+        _unit = "";
+    }
+
+    void init(int value, String desc, String unit) {
+        _value = value;
+        _desc = desc;
+        _unit = unit;
+    }
+
+    void setValue(int new_value)
+    {
+        _value = new_value;
+    }
+
+    int getValue()
+    {
+        return _value;
+    }
+
+
+};
+
+class PageSetup
+{
+private:
+    int _layout_type;
+    byte _max_value_num;
+    ValueAttrs _values[8];
+
+public:
+    // Constructor (runs automatically when object is created)
+    PageSetup()
+    {
+        _layout_type = 0;
+        _max_value_num = 8;
+    }
+
+
+    void setLayoutType(int new_layout)
+    {
+        _layout_type = new_layout;
+    }
+
+    int getLayout()
+    {
+        return _layout_type;
+    }
+
+    void setMaxPageNum(int new_max_value_num)
+    {
+        _max_value_num = new_max_value_num;
+    }
+
+    byte getMaxPageNum()
+    {
+        return _max_value_num;
+    }
+};
 
 BLECharacteristic *read_characteristic;
 
@@ -163,6 +240,11 @@ class MyCallbacks : public BLECharacteristicCallbacks
               response_array[3] = 0x05;
           }
         }
+        //set page layout type
+        if (write_value[1] == 13)
+        {
+
+        }
         read_characteristic->setValue(response_array);
 
         for (int i = 0; i < write_value.length(); i++)
@@ -232,6 +314,15 @@ class MyCallbacks : public BLECharacteristicCallbacks
 
 //   return true;
 // }
+
+void set_layout_0(void)
+{
+    tft->fillScreen(TFT_BLACK);
+    tft->setTextColor(TFT_YELLOW, TFT_BLACK);
+    tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 50, 200, 4);
+    tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 5, 118, 7);
+}
+
 
 void setupBLE(void)
 {
@@ -329,13 +420,6 @@ void loop()
   {
 
     interval = millis();
-
-    tft->setTextColor(TFT_RED, TFT_BLACK);
-
-    //tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 50, 200, 4);
-
-    //tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 5, 118, 7);
-
-    tft->fillScreen(TFT_GOLD);
+    set_layout_0();   
   }
 }
