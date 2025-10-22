@@ -18,8 +18,6 @@ bool oldDeviceConnected = false;
 uint32_t interval = 0;
 byte page = 0;
 byte max_pages = 1;
-byte page_values[8];
-
 
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
@@ -34,229 +32,285 @@ byte page_values[8];
 #define LAYOUT_3 3
 #define LAYOUT_4 4
 
+// delete later, right now used for testing purposes
+#define COMMAND_KEY 1
+
 char response_array[131];
 
 class ValueAttrs
 {
 private:
-    int _value;
-    String _desc;
-    String _unit;
+  int _value;
+  String _desc;
+  String _unit;
 
 public:
-    // Constructor (runs automatically when object is created)
-    ValueAttrs()
-    {
-        _value = 0;
-        _desc = "";
-        _unit = "";
-    }
+  // Constructor (runs automatically when object is created)
+  ValueAttrs()
+  {
+    _value = 0;
+    _desc = "";
+    _unit = "";
+  }
 
-    void init(int value, String desc, String unit) {
-        _value = value;
-        _desc = desc;
-        _unit = unit;
-    }
+  void init(int value, String desc, String unit)
+  {
+    _value = value;
+    _desc = desc;
+    _unit = unit;
+  }
 
-    void setValue(int new_value)
-    {
-        _value = new_value;
-    }
+  void setValue(int new_value)
+  {
+    _value = new_value;
+  }
 
-    int getValue()
-    {
-        return _value;
-    }
-
-
+  int getValue()
+  {
+    return _value;
+  }
 };
 
 class PageSetup
 {
 private:
-    int _layout_type;
-    byte _max_value_num;
-    ValueAttrs _values[8];
+  int _layout_type;
+  byte _max_value_num;
+  byte _max_digit_num[8];
+  ValueAttrs _values[8];
 
 public:
-    // Constructor (runs automatically when object is created)
-    PageSetup()
-    {
-        _layout_type = 0;
-        _max_value_num = 8;
-    }
+  // Constructor (runs automatically when object is created)
+  PageSetup()
+  {
+    _layout_type = 0;
+    _max_value_num = 8;
+  }
 
+  void setLayoutType(int new_layout)
+  {
+    _layout_type = new_layout;
+  }
 
-    void setLayoutType(int new_layout)
-    {
-        _layout_type = new_layout;
-    }
+  int getLayout()
+  {
+    return _layout_type;
+  }
 
-    int getLayout()
+  void setMaxPageNum(int new_max_value_num)
+  {
+    if (new_max_value_num > 1 &&  new_max_value_num < 8)
     {
-        return _layout_type;
+      _max_value_num = new_max_value_num;
     }
+  }
 
-    void setMaxPageNum(int new_max_value_num)
+  void setMaxDigitNum(int new_max_digit_num, byte index)
+  {
+    if (new_max_digit_num > 1 && new_max_digit_num < 10)
     {
-        _max_value_num = new_max_value_num;
+      _max_digit_num[index] = new_max_digit_num;
     }
+  }
 
-    byte getMaxPageNum()
-    {
-        return _max_value_num;
-    }
+  byte getMaxPageNum()
+  {
+    return _max_value_num;
+  }
 };
+
+PageSetup pages[8];
 
 BLECharacteristic *read_characteristic;
 
 class MyCallbacks : public BLECharacteristicCallbacks
 {
-    void onWrite(BLECharacteristic *write_characteristic)
+  void onWrite(BLECharacteristic *write_characteristic)
+  {
+    std::string write_value = write_characteristic->getValue();
+
+    if (write_value.length() > 0)
     {
-      std::string write_value = write_characteristic->getValue();
+      Serial.println("*********");
+      Serial.print("New value: ");
+      write_value.c_str();
+      // clear response before setting new values
+      memset(response_array, 0, sizeof(response_array));
 
-      if (write_value.length() > 0) {
-        Serial.println("*********");
-        Serial.print("New value: ");
-        write_value.c_str();
-        // clear response before setting new values
-        memset(response_array, 0, sizeof(response_array));
+      // TODO: promijeniti u write_value[0], za sada je ovako lakše testirati preko mobitela
+      //  Identify capability
+      if (write_value[COMMAND_KEY] == 0x01)
+      {
+        response_array[0] = 0x01;
+        response_array[1] = 0x00;
+        response_array[2] = 0x0E;
+        response_array[3] = 0x01;
+        response_array[4] = 0x02;
+        response_array[5] = 0x03;
+        response_array[6] = 0x04;
+        response_array[7] = 0x18;
+        response_array[8] = 0x19;
+        response_array[9] = 0x1A;
+        response_array[10] = 0x1B;
+        response_array[11] = 0x1C;
+        response_array[12] = 0x1D;
+        response_array[13] = 0x1D;
+        response_array[14] = 0x1E;
+        response_array[15] = 0x20;
+        response_array[16] = 0x21;
+      }
+      int level;
+      // Battery level in %
+      if (write_value[COMMAND_KEY] == 0x02)
+      {
+        level = ttgo->power->getBattPercentage();
+        response_array[0] = 0x02;
+        response_array[1] = 0x00;
+        response_array[2] = 0x01;
+        response_array[3] = level;
+        Serial.println(level);
+      }
+      // Battery level in mV
+      if (write_value[COMMAND_KEY] == 0x03)
+      {
+        level = ttgo->power->getBattVoltage();
+        response_array[0] = 0x03;
+        response_array[1] = 0x00;
+        response_array[2] = 0x02;
+        response_array[3] = level;
+        response_array[4] = level >> 2;
+      }
+      // FW version
+      if (write_value[COMMAND_KEY] == 0x04)
+      {
+        response_array[0] = 0x02;
+        response_array[1] = 0x00;
+        response_array[2] = 0x06;
+        response_array[3] = 0x04;
+        response_array[4] = 0x00;
+        response_array[5] = 0x03;
+        response_array[6] = 0x01;
+        response_array[7] = 0x00;
+        response_array[8] = 0x01;
+      }
+      // Set number of watch pages
+      if (write_value[COMMAND_KEY] == 0x17)
+      {
+        response_array[0] = 0x17;
+        response_array[1] = 0x00;
+        response_array[2] = 0x02;
+        response_array[3] = 0x00;
+        response_array[4] = 0x00;
 
-        //TODO: promijeniti u write_value[0], za sada je ovako lakše testirati preko mobitela
-        // Identify capability
-        if (write_value[1] == 0x01)
+        // check if the desired watch page number is out of limits
+        if (write_value[3] > 1 && write_value[3] < 8)
         {
-          response_array[0] = 0x01;
-          response_array[1] = 0x00;
-          response_array[2] = 0x0E;
-          response_array[3] = 0x01;
-          response_array[4] = 0x02;
-          response_array[5] = 0x03;
-          response_array[6] = 0x04;
-          response_array[7] = 0x18;
-          response_array[8] = 0x19;
-          response_array[9] = 0x1A;
-          response_array[10] = 0x1B;
-          response_array[11] = 0x1C;
-          response_array[12] = 0x1D;
-          response_array[13] = 0x1D;
-          response_array[14] = 0x1E;
-          response_array[15] = 0x20;
-          response_array[16] = 0x21;
+          max_pages = write_value[2];
         }
-        int level;
-        // Battery level in %
-        if (write_value[1] == 0x02)
+        // Number of pages too low
+        if (write_value[3] < 1)
         {
-          level = ttgo->power->getBattPercentage();
-          response_array[0] = 0x02;
-          response_array[1] = 0x00;
-          response_array[2] = 0x01;
-          response_array[3] = level;
-          Serial.println(level);
-
+          response_array[2] = 0x0C;
         }
-        // Battery level in mV
-        if (write_value[1] == 0x03)
+        // Number of pages too high
+        if (write_value[3] > 8)
         {
-          level = ttgo->power->getBattVoltage();
-          response_array[0] = 0x03;
-          response_array[1] = 0x00;
-          response_array[2] = 0x02;
-          response_array[3] = level;
-          response_array[4] = level>>2;
-
+          response_array[2] = 0x0D;
         }
-        // FW version
-        if (write_value[1] == 0x04)
+      }
+      // Set number of values on a page
+      if (write_value[COMMAND_KEY] == 0x18)
+      {
+        response_array[0] = 0x18;
+        response_array[1] = 0x00;
+        response_array[2] = 0x02;
+        // accepted
+        response_array[3] = 0x00;
+        response_array[4] = 0x00;
+        // if page exists
+        if (write_value[3] > 1 && write_value[3] < max_pages)
         {
-          response_array[0] = 0x02;
-          response_array[1] = 0x00;
-          response_array[2] = 0x06;
-          response_array[3] = 0x04;
-          response_array[4] = 0x00;
-          response_array[5] = 0x03;
-          response_array[6] = 0x01;
-          response_array[7] = 0x00;
-          response_array[8] = 0x01;
-        }
-        // Set number of watch pages
-        if (write_value[1] == 0x11)
-        {
-          response_array[0] = 0x11;
-          response_array[1] = 0x00;
-          response_array[2] = 0x02;
-          response_array[3] = 0x00;
-          response_array[4] = 0x00;
-
-          // check if the desired watch page number is out of limits
-          if(write_value[3] > 1 && write_value[3] < 8)
+          // if correct number of values
+          if (write_value[4] > 1 && write_value[4] < 8)
           {
-              max_pages = write_value[2];
+            pages[write_value[3] - 1].setMaxPageNum(write_value[4]);
           }
-          // Number of pages too low
-          if(write_value[3] < 1)
+          // number of values too low
+          if (write_value[4] > 8)
           {
-              response_array[2] = 0x0C;
+            response_array[4] = 0x0E;
           }
-          // Number of pages too high
-          if(write_value[3] > 8)
+          // number of values too high
+          if (write_value[4] < 1)
           {
-              response_array[2] = 0x0D;
-          }
-        }
-        // Set number of page values
-        if (write_value[1] == 12)
-        {
-          response_array[0] = 0x12;
-          response_array[1] = 0x00;
-          response_array[2] = 0x02;
-          // accepted
-          response_array[3] = 0x00;
-          response_array[4] = 0x00;
-          // if page exists
-          if(write_value[3] > 1 && write_value[3] < max_pages)
-          {
-            // if correct number of values
-            if(write_value[4] > 1 && write_value[4] < 8)
-            {
-              page_values[write_value[3]] = write_value[4]; 
-            }
-            // number of values too low
-            if(write_value[4] > 8)
-            {
-              response_array[4] = 0x0E;
-            }
-            // number of values too high
-            if(write_value[4] < 1)
-            {
-              response_array[4] = 0x0F;
-            }
-          }
-          // page doesn't exist
-          if(write_value[3] < 1 || write_value[3] > max_pages) 
-          {
-              response_array[3] = 0x05;
+            response_array[4] = 0x0F;
           }
         }
-        //set page layout type
-        if (write_value[1] == 13)
+        // page doesn't exist
+        if (write_value[3] < 1 || write_value[3] > max_pages)
         {
-
+          response_array[3] = 0x05;
         }
-        read_characteristic->setValue(response_array);
-
-        for (int i = 0; i < write_value.length(); i++)
-          Serial.print(write_value[i]);
-        Serial.println();
-        Serial.println("*********");
+      }
+      // set page layout type
+      if (write_value[COMMAND_KEY] == 0x19)
+      {
+        response_array[0] = 0x19;
+        response_array[1] = 0x00;
+        response_array[2] = 0x02;
+        // accepted
+        response_array[3] = 0x00;
+        response_array[4] = 0x00;
+        if (write_value[3] > 1 && write_value[3] < 8)
+        {
+          pages[write_value[3] - 1].setLayoutType(write_value[4]);
+        }
+        else
+        {
+          // page doesn't exist error code
+          response_array[3] = 0x05;
+        }
+        // TODO: Add layout doesn't exist, first need to implement layouts
+        //  response_array[3] = 0x10;
       }
 
-      if (write_value.length() <= 0) {
-        return;
+      // set number of digits for page
+      if (write_value[COMMAND_KEY] == 0x1A)
+      {
+        response_array[0] = 0x1A;
+        response_array[1] = 0x00;
+        response_array[2] = 0x02;
+        // accepted
+        response_array[3] = 0x00;
+        response_array[4] = 0x00;
+        // check if page exists
+        if (write_value[3] > 1 && write_value[3] < 8)
+        {
+          // check if value exists
+          if (write_value[4] > 1 && write_value[4] < (pages[write_value[3] - 1].getMaxPageNum()))
+            pages[write_value[3] - 1].setMaxDigitNum(write_value[5], write_value[4] - 1);
+        }
+        else
+        {
+          // page doesn't exist error code
+          response_array[3] = 0x05;
+        }
+        // implement other error codes
       }
+
+      read_characteristic->setValue(response_array);
+
+      for (int i = 0; i < write_value.length(); i++)
+        Serial.print(write_value[i]);
+      Serial.println();
+      Serial.println("*********");
     }
+
+    if (write_value.length() <= 0)
+    {
+      return;
+    }
+  }
 };
 
 // bool setDateTimeFormBLE(const char *str)
@@ -317,12 +371,14 @@ class MyCallbacks : public BLECharacteristicCallbacks
 
 void set_layout_0(void)
 {
-    tft->fillScreen(TFT_BLACK);
-    tft->setTextColor(TFT_YELLOW, TFT_BLACK);
-    tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 50, 200, 4);
-    tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 5, 118, 7);
+  // clear screen
+  // tft->fillScreen(TFT_BLACK);
+  tft->setTextColor(TFT_YELLOW, TFT_BLACK);
+  tft->drawString("Value 1", 0, 0, 4);
+  tft->drawString("Value 2", 0, 50, 4);
+  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 50, 200, 4);
+  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 5, 118, 7);
 }
-
 
 void setupBLE(void)
 {
@@ -330,21 +386,21 @@ void setupBLE(void)
   BLEServer *pServer = BLEDevice::createServer();
   BLEService *pService = pServer->createService(SERVICE_UUID);
   read_characteristic = pService->createCharacteristic(
-                          WRITE_UUID,
-                          BLECharacteristic::PROPERTY_READ |
-                          BLECharacteristic::PROPERTY_WRITE |
-                          BLECharacteristic::PROPERTY_NOTIFY);
+      WRITE_UUID,
+      BLECharacteristic::PROPERTY_READ |
+          BLECharacteristic::PROPERTY_WRITE |
+          BLECharacteristic::PROPERTY_NOTIFY);
   BLECharacteristic *write_characteristic = pService->createCharacteristic(
-        READ_UUID,
-        BLECharacteristic::PROPERTY_READ |
-        BLECharacteristic::PROPERTY_WRITE);
+      READ_UUID,
+      BLECharacteristic::PROPERTY_READ |
+          BLECharacteristic::PROPERTY_WRITE);
 
   write_characteristic->setCallbacks(new MyCallbacks());
   read_characteristic->setValue("read char");
   write_characteristic->setValue("write char");
 
   BLEDescriptor *desc = new BLEDescriptor(
-    BLEUUID((uint16_t)0x2901)); // User Description Descriptor
+      BLEUUID((uint16_t)0x2901)); // User Description Descriptor
   desc->setValue("Read Characteristic");
   read_characteristic->addDescriptor(desc);
   pService->start();
@@ -361,19 +417,19 @@ void setupBLE(void)
 
 void drawSTATUS(bool status)
 {
-    String str = status ? "Connection" : "Disconnect";
-    int16_t cW = tft->textWidth("Connection", 2);
-    int16_t dW = tft->textWidth("Disconnect", 2);
-    int16_t w = cW > dW ? cW : dW;
-    w += 6;
-    int16_t x = 160;
-    int16_t y = 20;
-    int16_t h = tft->fontHeight(2) + 4;
-    uint16_t col = status ? TFT_GREEN : TFT_GREY;
-    tft->fillRoundRect(x, y, w, h, 3, col);
-    tft->setTextColor(TFT_BLACK, col);
-    tft->setTextFont(2);
-    tft->drawString(str, x + 2, y);
+  String str = status ? "Connection" : "Disconnect";
+  int16_t cW = tft->textWidth("Connection", 2);
+  int16_t dW = tft->textWidth("Disconnect", 2);
+  int16_t w = cW > dW ? cW : dW;
+  w += 6;
+  int16_t x = 160;
+  int16_t y = 20;
+  int16_t h = tft->fontHeight(2) + 4;
+  uint16_t col = status ? TFT_GREEN : TFT_GREY;
+  tft->fillRoundRect(x, y, w, h, 3, col);
+  tft->setTextColor(TFT_BLACK, col);
+  tft->setTextFont(2);
+  tft->drawString(str, x + 2, y);
 }
 
 void setup()
@@ -402,14 +458,16 @@ void setup()
 void loop()
 {
   // disconnected
-  if (!deviceConnected && oldDeviceConnected) {
+  if (!deviceConnected && oldDeviceConnected)
+  {
     oldDeviceConnected = deviceConnected;
     Serial.println("Draw deviceDisconnected");
     drawSTATUS(false);
   }
 
   // connecting
-  if (deviceConnected && !oldDeviceConnected) {
+  if (deviceConnected && !oldDeviceConnected)
+  {
     // do stuff here on connecting
     oldDeviceConnected = deviceConnected;
     Serial.println("Draw deviceConnected");
@@ -420,6 +478,6 @@ void loop()
   {
 
     interval = millis();
-    set_layout_0();   
+    set_layout_0();
   }
 }
