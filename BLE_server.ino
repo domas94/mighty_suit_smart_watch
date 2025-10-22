@@ -16,6 +16,7 @@ PCF8563_Class *rtc;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
 uint32_t interval = 0;
+uint32_t interval_bat = 0;
 byte page = 0;
 byte max_pages = 1;
 
@@ -31,6 +32,57 @@ byte max_pages = 1;
 #define LAYOUT_2 2
 #define LAYOUT_3 3
 #define LAYOUT_4 4
+
+typedef enum
+{
+  LV_ICON_BAT_EMPTY,
+  LV_ICON_BAT_1,
+  LV_ICON_BAT_2,
+  LV_ICON_BAT_3,
+  LV_ICON_BAT_FULL,
+  LV_ICON_CHARGE,
+  LV_ICON_CALCULATION
+} lv_icon_battery_t;
+
+void updateBatIcon(lv_icon_battery_t icon)
+{
+  String str;
+  byte x = 160;
+  byte y = 20;
+  byte w;
+  byte h = 10;
+  byte offset_x = 20;
+  byte offset_y = 5;
+  int color = TFT_GREEN;
+  TTGOClass *ttgo = TTGOClass::getWatch();
+  int level = ttgo->power->getBattPercentage();
+  w = level / 10 * 5 + 10;
+  Serial.println(level);
+  tft->fillScreen(TFT_BLACK);
+  tft->setTextColor(TFT_YELLOW, TFT_BLACK);
+  if (level < 20)
+  {
+    color = TFT_RED;
+  }
+  if (icon == LV_ICON_CHARGE)
+  {
+    color = TFT_GREEN;
+  }
+  else if (icon == LV_ICON_BAT_FULL)
+  {
+    color = TFT_GOLD;
+  }
+  else if (icon == LV_ICON_BAT_EMPTY)
+  {
+    color = TFT_PURPLE;
+  }
+
+  str = String(level) + "%";
+  {
+    tft->drawString(str, x, y);
+    tft->fillRoundRect(x + offset_x, y + offset_y, w, h, 3, color);
+  }
+}
 
 // delete later, right now used for testing purposes
 #define COMMAND_KEY 1
@@ -99,7 +151,7 @@ public:
 
   void setMaxPageNum(int new_max_value_num)
   {
-    if (new_max_value_num > 1 &&  new_max_value_num < 8)
+    if (new_max_value_num > 1 && new_max_value_num < 8)
     {
       _max_value_num = new_max_value_num;
     }
@@ -375,15 +427,32 @@ void set_layout_0(void)
   // tft->fillScreen(TFT_BLACK);
   tft->setTextColor(TFT_YELLOW, TFT_BLACK);
   tft->drawString("Value 1", 0, 0, 4);
-  tft->drawString("Value 2", 0, 50, 4);
+  tft->drawString("Value 2", 0, 30, 2);
   tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 50, 200, 4);
   tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 5, 118, 7);
+  drawSTATUS(deviceConnected);
 }
+
+class MyServerCallback : public BLEServerCallbacks
+{
+  void onConnect(BLEServer *pServer)
+  {
+    deviceConnected = true;
+    Serial.println("onConnect");
+  }
+
+  void onDisconnect(BLEServer *pServer)
+  {
+    deviceConnected = false;
+    Serial.println("onDisconnect");
+  }
+};
 
 void setupBLE(void)
 {
   BLEDevice::init("MightySuit-Watch");
   BLEServer *pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new MyServerCallback);
   BLEService *pService = pServer->createService(SERVICE_UUID);
   read_characteristic = pService->createCharacteristic(
       WRITE_UUID,
@@ -423,7 +492,7 @@ void drawSTATUS(bool status)
   int16_t w = cW > dW ? cW : dW;
   w += 6;
   int16_t x = 160;
-  int16_t y = 20;
+  int16_t y = 0;
   int16_t h = tft->fontHeight(2) + 4;
   uint16_t col = status ? TFT_GREEN : TFT_GREY;
   tft->fillRoundRect(x, y, w, h, 3, col);
@@ -447,10 +516,14 @@ void setup()
   rtc = ttgo->rtc;
   tft = ttgo->tft;
 
-  
-    //attach touch screen interrupt pin
-    pinMode(TP_INT, INPUT);
-    ttgo->motor_begin();
+  // Turn on the IRQ used
+  ttgo->power->adc1Enable(AXP202_BATT_VOL_ADC1 | AXP202_BATT_CUR_ADC1 | AXP202_VBUS_VOL_ADC1 | AXP202_VBUS_CUR_ADC1, AXP202_ON);
+  ttgo->power->enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_CHARGING_FINISHED_IRQ, AXP202_ON);
+  ttgo->power->clearIRQ();
+
+  // attach touch screen interrupt pin
+  pinMode(TP_INT, INPUT);
+  ttgo->motor_begin();
 
   // Time check will be done, if the time is incorrect, it will be set to compile time
   rtc->check();
@@ -458,35 +531,45 @@ void setup()
 
   // Draw initial connection status
   drawSTATUS(false);
+  updateBatIcon(LV_ICON_CALCULATION);
 }
 
 void loop()
 {
-  // disconnected
-  if (!deviceConnected && oldDeviceConnected)
-  {
-    oldDeviceConnected = deviceConnected;
-    Serial.println("Draw deviceDisconnected");
-    drawSTATUS(false);
-  }
-
-  // connecting
-  if (deviceConnected && !oldDeviceConnected)
-  {
-    // do stuff here on connecting
-    oldDeviceConnected = deviceConnected;
-    Serial.println("Draw deviceConnected");
-    drawSTATUS(true);
-  }
 
   if (millis() - interval > 1000)
   {
 
+    ttgo->power->readIRQ();
+    if (ttgo->power->isVbusPlugInIRQ())
+    {
+      updateBatIcon(LV_ICON_CHARGE);
+    }
+    if (ttgo->power->isVbusRemoveIRQ())
+    {
+      updateBatIcon(LV_ICON_BAT_EMPTY);
+    }
+    if (ttgo->power->isChargingDoneIRQ())
+    {
+      updateBatIcon(LV_ICON_BAT_FULL);
+    }
+    if (ttgo->power->isPEKShortPressIRQ())
+    {
+      ttgo->power->clearIRQ();
+    }
+    ttgo->power->clearIRQ();
     interval = millis();
     set_layout_0();
   }
-      if (digitalRead(TP_INT) == LOW) {
-        ttgo->motor->onec();
-        delay(100);
-    }
+
+  if (millis() - interval_bat > 10000)
+  {
+    interval_bat = millis();
+    updateBatIcon(LV_ICON_CALCULATION);
+  }
+  if (digitalRead(TP_INT) == LOW)
+  {
+    ttgo->motor->onec();
+    delay(100);
+  }
 }
