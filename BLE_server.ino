@@ -447,6 +447,11 @@ void setup()
   rtc = ttgo->rtc;
   tft = ttgo->tft;
 
+  
+    //attach touch screen interrupt pin
+    pinMode(TP_INT, INPUT);
+    ttgo->motor_begin();
+
   // Time check will be done, if the time is incorrect, it will be set to compile time
   rtc->check();
   setupBLE();
@@ -480,4 +485,8 @@ void loop()
     interval = millis();
     set_layout_0();
   }
+      if (digitalRead(TP_INT) == LOW) {
+        ttgo->motor->onec();
+        delay(100);
+    }
 }
