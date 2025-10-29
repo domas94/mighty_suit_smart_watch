@@ -17,8 +17,10 @@ bool deviceConnected = false;
 bool oldDeviceConnected = false;
 uint32_t interval = 0;
 uint32_t interval_bat = 0;
-byte page = 0;
-byte max_pages = 1;
+
+byte max_pages = 8;
+
+BLECharacteristic *read_characteristic;
 
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
@@ -32,6 +34,8 @@ byte max_pages = 1;
 #define LAYOUT_2 2
 #define LAYOUT_3 3
 #define LAYOUT_4 4
+#define SCREEN_WIDTH 240
+#define SCREEN_CENTER 120
 
 typedef enum
 {
@@ -47,18 +51,17 @@ typedef enum
 void updateBatIcon(lv_icon_battery_t icon)
 {
   String str;
-  byte x = 160;
+  byte x = 210;
   byte y = 20;
   byte w;
   byte h = 10;
-  byte offset_x = 20;
-  byte offset_y = 5;
+  int16_t value_w;
   int color = TFT_GREEN;
   TTGOClass *ttgo = TTGOClass::getWatch();
   int level = ttgo->power->getBattPercentage();
-  w = level / 10 * 5 + 10;
-  Serial.println(level);
-  tft->fillScreen(TFT_BLACK);
+  w = level / 10 * 2 + 10;
+  // clear previous value
+  tft->fillRoundRect(x-30, y, w+30, h+10, 3, TFT_BLACK);
   tft->setTextColor(TFT_YELLOW, TFT_BLACK);
   if (level < 20)
   {
@@ -78,10 +81,10 @@ void updateBatIcon(lv_icon_battery_t icon)
   }
 
   str = String(level) + "%";
-  {
-    tft->drawString(str, x, y);
-    tft->fillRoundRect(x + offset_x, y + offset_y, w, h, 3, color);
-  }
+  value_w = tft->textWidth(str);
+  tft->setTextSize(1);
+  tft->drawString(str, x - value_w, y);
+  tft->fillRoundRect(x, y, w, h, 3, color);
 }
 
 // delete later, right now used for testing purposes
@@ -121,6 +124,24 @@ public:
   {
     return _value;
   }
+  void setDesc(String new_desc)
+  {
+    _desc = new_desc;
+  }
+
+  String getDesc()
+  {
+    return _desc;
+  }
+  void setUnit(String new_unit)
+  {
+    _unit = new_unit;
+  }
+
+  String getUnit()
+  {
+    return _unit;
+  }
 };
 
 class PageSetup
@@ -129,7 +150,6 @@ private:
   int _layout_type;
   byte _max_value_num;
   byte _max_digit_num[8];
-  ValueAttrs _values[8];
 
 public:
   // Constructor (runs automatically when object is created)
@@ -170,10 +190,8 @@ public:
     return _max_value_num;
   }
 };
-
 PageSetup pages[8];
-
-BLECharacteristic *read_characteristic;
+ValueAttrs values[8];
 
 class MyCallbacks : public BLECharacteristicCallbacks
 {
@@ -421,15 +439,44 @@ class MyCallbacks : public BLECharacteristicCallbacks
 //   return true;
 // }
 
+// height and width are 240
 void set_layout_0(void)
 {
   // clear screen
   // tft->fillScreen(TFT_BLACK);
   tft->setTextColor(TFT_YELLOW, TFT_BLACK);
-  tft->drawString("Value 1", 0, 0, 4);
-  tft->drawString("Value 2", 0, 30, 2);
-  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 50, 200, 4);
-  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 5, 118, 7);
+
+  tft->setTextSize(1);
+  int16_t value_w = tft->textWidth(String(values[0].getValue()));
+  tft->drawString(String(values[0].getValue()), 0, 0);
+  tft->drawString(values[0].getUnit(), value_w, 0);
+  tft->drawString(values[0].getDesc(), value_w + 30, 0);
+  Serial.println(value_w);
+
+  tft->setTextSize(4);
+  value_w = tft->textWidth(String(values[1].getValue()));
+  tft->drawString(String(values[1].getValue()), 90, 90);
+  tft->drawString(values[1].getUnit(), 90 + 50, 90);
+  tft->setTextSize(1);
+  tft->drawString(values[1].getDesc(), 90, 90 + 50);
+
+  // value_w = tft->textWidth(String(values[2].getValue()));
+  // tft->drawString(String(values[2].getValue()), 100, 200, 6);
+  // tft->drawString(values[2].getUnit(), 100 + value_w, 200, 6);
+  // tft->drawString(values[2].getDesc(), 100, 200, 2);
+
+  // value_w = tft->textWidth(String(values[3].getValue()));
+  // tft->drawString(String(values[3].getValue()), 100, 200, 6);
+  // tft->drawString(values[3].getUnit(), 100 + value_w, 200, 6);
+  // tft->drawString(values[3].getDesc(), 100, 200, 2);
+
+  // value_w = tft->textWidth(String(values[4].getValue()));
+  // tft->drawString(String(values[4].getValue()), 0, 200, 6);
+  // tft->drawString(values[4].getUnit(), 0 + value_w, 200, 6);
+  // tft->drawString(values[4].getDesc(), 0, 200, 2);
+
+  // tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 50, 200, 4);
+  // tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 5, 118, 7);
   drawSTATUS(deviceConnected);
 }
 
@@ -486,18 +533,18 @@ void setupBLE(void)
 
 void drawSTATUS(bool status)
 {
-  String str = status ? "Connection" : "Disconnect";
-  int16_t cW = tft->textWidth("Connection", 2);
-  int16_t dW = tft->textWidth("Disconnect", 2);
+  String str = status ? "c" : "dc";
+  int16_t cW = tft->textWidth("c");
+  int16_t dW = tft->textWidth("dc");
   int16_t w = cW > dW ? cW : dW;
   w += 6;
-  int16_t x = 160;
+  int16_t x = 220;
   int16_t y = 0;
   int16_t h = tft->fontHeight(2) + 4;
   uint16_t col = status ? TFT_GREEN : TFT_GREY;
   tft->fillRoundRect(x, y, w, h, 3, col);
   tft->setTextColor(TFT_BLACK, col);
-  tft->setTextFont(2);
+  tft->setTextSize(1);
   tft->drawString(str, x + 2, y);
 }
 
@@ -505,6 +552,22 @@ void setup()
 {
   Serial.begin(115200);
   Serial.println("Starting BLE work!");
+
+  values[0].setValue(123);
+  values[0].setDesc("Gas level");
+  values[0].setUnit("ppm");
+  values[1].setValue(67);
+  values[1].setDesc("Infrared sensor");
+  values[1].setUnit("%");
+  values[2].setValue(89);
+  values[2].setDesc("Left");
+  values[2].setUnit("C");
+  values[3].setValue(35);
+  values[3].setDesc("Right");
+  values[3].setUnit("C");
+  values[4].setValue(0);
+  values[4].setDesc("Boots");
+  values[4].setUnit("");
 
   // Get watch instance
   ttgo = TTGOClass::getWatch();
@@ -528,6 +591,8 @@ void setup()
   // Time check will be done, if the time is incorrect, it will be set to compile time
   rtc->check();
   setupBLE();
+  // set font type
+  tft->setTextFont(0);
 
   // Draw initial connection status
   drawSTATUS(false);
