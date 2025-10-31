@@ -51,7 +51,7 @@ typedef enum
 void updateBatIcon(lv_icon_battery_t icon)
 {
   String str;
-  byte x = 210;
+  byte x = 205;
   byte y = 20;
   byte w;
   byte h = 10;
@@ -84,7 +84,7 @@ void updateBatIcon(lv_icon_battery_t icon)
   value_w = tft->textWidth(str);
   tft->setTextSize(1);
   tft->drawString(str, x - value_w, y);
-  tft->fillRoundRect(x, y, w, h, 3, color);
+  tft->fillRoundRect(x, y + 5, w, h, 3, color);
 }
 
 // delete later, right now used for testing purposes
@@ -388,12 +388,12 @@ class MyCallbacks : public BLECharacteristicCallbacks
         // implement other error codes
       }
       Serial.println();
-      read_characteristic->setValue(response_array,29);
+      read_characteristic->setValue(response_array, 29);
       read_characteristic->notify();
 
       for (int i = 0; i < write_value.length(); i++)
         Serial.print(write_value[i]);
-        Serial.print(" ");
+      Serial.print(" ");
       Serial.println();
       Serial.println("*********");
     }
@@ -461,19 +461,17 @@ class MyCallbacks : public BLECharacteristicCallbacks
 //   return true;
 // }
 
-// height and width are 240
+// critical info layout
 void set_layout_0(void)
 {
-  // clear screen
-  // tft->fillScreen(TFT_BLACK);
   tft->setTextColor(TFT_YELLOW, TFT_BLACK);
 
   tft->setTextSize(2);
   int16_t value_w = tft->textWidth(String(values[0].getValue()));
   tft->drawString(String(values[0].getValue()), 0, 10);
   tft->drawString(values[0].getUnit(), 0 + value_w, 10);
-    tft->setTextSize(1);
-  tft->drawString(values[0].getDesc(), value_w + 50, 20);
+  tft->setTextSize(1);
+  tft->drawString(values[0].getDesc(), 0 + value_w + 50, 20);
 
   tft->setTextSize(3);
   value_w = tft->textWidth(String(values[1].getValue()));
@@ -498,7 +496,7 @@ void set_layout_0(void)
 
   tft->drawString(values[3].getDesc(), 180, 220);
 
-    tft->setTextSize(2);
+  tft->setTextSize(2);
   value_w = tft->textWidth(String(values[4].getValue()));
   tft->drawString(String(values[4].getValue()), 0, 190);
   tft->drawString(values[4].getUnit(), 0 + value_w, 190);
@@ -508,6 +506,39 @@ void set_layout_0(void)
 
   // tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 50, 200, 4);
   // tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 5, 118, 7);
+  drawSTATUS(deviceConnected);
+}
+
+// non critical info layout
+void set_layout_1(void)
+{
+  tft->setTextColor(TFT_YELLOW, TFT_BLACK);
+
+  tft->setTextSize(2);
+  tft->drawString(String(values[0].getValue()), 123, 10);
+  int16_t value_w = tft->textWidth(String(values[0].getValue()));
+  tft->drawString(values[0].getUnit(), 123 + value_w, 10);
+  tft->drawString(values[0].getDesc(), 0, 10);
+
+  tft->setTextSize(2);
+  tft->drawString(String(values[1].getValue()), 123, 50);
+  value_w = tft->textWidth(String(values[1].getValue()));
+  tft->drawString(values[1].getUnit(), 123 + value_w, 50);
+  tft->drawString(values[1].getDesc(), 0, 50);
+
+  tft->setTextSize(2);
+  tft->drawString(String(values[2].getValue()), 123, 90);
+  value_w = tft->textWidth(String(values[2].getValue()));
+  tft->drawString(values[2].getUnit(), 123 + value_w, 90);
+  tft->drawString(values[2].getDesc(), 0, 90);
+
+  tft->setTextSize(3);
+  value_w = tft->textWidth(String(values[3].getValue()));
+  tft->drawString(String(values[3].getValue()), 70, 160);
+  tft->drawString(values[3].getUnit(), 70 + value_w, 160);
+  tft->setTextSize(2);
+  tft->drawString(values[3].getDesc(), 70, 200);
+
   drawSTATUS(deviceConnected);
 }
 
@@ -577,17 +608,17 @@ void setupBLE(void)
 void drawSTATUS(bool status)
 {
   String str = status ? "con" : "dc";
-  int16_t cW = tft->textWidth("con");
+  tft->setTextSize(1);
+
+  int16_t cW = tft->textWidth("cn");
   int16_t dW = tft->textWidth("dc");
   int16_t w = cW > dW ? cW : dW;
-  w += 6;
-  int16_t x = 220;
+  int16_t x = 190;
   int16_t y = 0;
-  int16_t h = tft->fontHeight(2) + 4;
+  int16_t h = tft->fontHeight() + 4;
   uint16_t col = status ? TFT_GREEN : TFT_GREY;
   tft->fillRoundRect(x, y, w, h, 3, col);
   tft->setTextColor(TFT_BLACK, col);
-  tft->setTextSize(1);
   tft->drawString(str, x + 2, y);
 }
 
@@ -596,18 +627,18 @@ void setup()
   Serial.begin(115200);
   Serial.println("Starting BLE work!");
 
-  values[0].setValue(123);
-  values[0].setDesc("Gas level");
-  values[0].setUnit("ppm");
-  values[1].setValue(67);
-  values[1].setDesc("Infrared sensor");
-  values[1].setUnit("%");
-  values[2].setValue(89);
-  values[2].setDesc("Left");
-  values[2].setUnit("C");
-  values[3].setValue(35);
-  values[3].setDesc("Right");
-  values[3].setUnit("C");
+  values[0].setValue(31);
+  values[0].setDesc("Temp Air");
+  values[0].setUnit("C");
+  values[1].setValue(45);
+  values[1].setDesc("Temp In");
+  values[1].setUnit("C");
+  values[2].setValue(132);
+  values[2].setDesc("Press");
+  values[2].setUnit("hPa");
+  values[3].setValue(67);
+  values[3].setDesc("Heart rate");
+  values[3].setUnit("BPM");
   values[4].setValue(0);
   values[4].setDesc("Boots");
   values[4].setUnit("");
@@ -667,7 +698,7 @@ void loop()
     }
     ttgo->power->clearIRQ();
     interval = millis();
-    set_layout_0();
+    set_layout_1();
   }
 
   if (millis() - interval_bat > 10000)
