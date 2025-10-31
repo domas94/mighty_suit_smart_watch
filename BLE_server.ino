@@ -26,8 +26,8 @@ BLECharacteristic *read_characteristic;
 // https://www.uuidgenerator.net/
 
 #define SERVICE_UUID "9ff3f90c-9a35-446e-9fd9-68a5a1d792ae"
-#define READ_UUID "862c9860-0d89-4caf-8902-dc615e1181e9"
-#define WRITE_UUID "862c9860-1d89-4caf-8902-dc615e1181e9"
+#define WRITE_UUID "862c9860-0d89-4caf-8902-dc615e1181e9"
+#define READ_UUID "862c9860-1d89-4caf-8902-dc615e1181e9"
 #define TFT_GREY 0x5AEB
 #define LAYOUT_0 0
 #define LAYOUT_1 1
@@ -61,7 +61,7 @@ void updateBatIcon(lv_icon_battery_t icon)
   int level = ttgo->power->getBattPercentage();
   w = level / 10 * 2 + 10;
   // clear previous value
-  tft->fillRoundRect(x-30, y, w+30, h+10, 3, TFT_BLACK);
+  tft->fillRoundRect(x - 30, y, w + 30, h + 10, 3, TFT_BLACK);
   tft->setTextColor(TFT_YELLOW, TFT_BLACK);
   if (level < 20)
   {
@@ -88,9 +88,9 @@ void updateBatIcon(lv_icon_battery_t icon)
 }
 
 // delete later, right now used for testing purposes
-#define COMMAND_KEY 1
+#define COMMAND_KEY 0
 
-char response_array[131];
+uint8_t response_array[131];
 
 class ValueAttrs
 {
@@ -203,9 +203,18 @@ class MyCallbacks : public BLECharacteristicCallbacks
     {
       Serial.println("*********");
       Serial.print("New value: ");
+
       write_value.c_str();
       // clear response before setting new values
       memset(response_array, 0, sizeof(response_array));
+
+      Serial.println(write_value.length());
+
+      for (int i = 0; i < write_value.length(); i++)
+      {
+        Serial.print(write_value[i], HEX);
+      }
+      Serial.println();
 
       // TODO: promijeniti u write_value[0], za sada je ovako lakše testirati preko mobitela
       //  Identify capability
@@ -214,20 +223,33 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[0] = 0x01;
         response_array[1] = 0x00;
         response_array[2] = 0x0E;
-        response_array[3] = 0x01;
-        response_array[4] = 0x02;
-        response_array[5] = 0x03;
-        response_array[6] = 0x04;
-        response_array[7] = 0x18;
-        response_array[8] = 0x19;
-        response_array[9] = 0x1A;
-        response_array[10] = 0x1B;
-        response_array[11] = 0x1C;
-        response_array[12] = 0x1D;
-        response_array[13] = 0x1D;
-        response_array[14] = 0x1E;
-        response_array[15] = 0x20;
-        response_array[16] = 0x21;
+        response_array[3] = 0x00;
+        response_array[4] = 0x01;
+        response_array[5] = 0x00;
+        response_array[6] = 0x02;
+        response_array[7] = 0x00;
+        response_array[8] = 0x03;
+        response_array[9] = 0x00;
+        response_array[10] = 0x04;
+        response_array[11] = 0x00;
+        response_array[12] = 0x18;
+        response_array[13] = 0x00;
+        response_array[14] = 0x19;
+        response_array[15] = 0x00;
+        response_array[16] = 0x1A;
+        response_array[17] = 0x00;
+        response_array[18] = 0x1B;
+        response_array[19] = 0x00;
+        response_array[20] = 0x1C;
+        response_array[21] = 0x00;
+        response_array[22] = 0x1D;
+        response_array[23] = 0x00;
+        response_array[24] = 0x1E;
+        response_array[25] = 0x00;
+        response_array[26] = 0x20;
+        response_array[27] = 0x00;
+        response_array[28] = 0x21;
+        response_array[29] = 0x00;
       }
       int level;
       // Battery level in %
@@ -236,9 +258,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
         level = ttgo->power->getBattPercentage();
         response_array[0] = 0x02;
         response_array[1] = 0x00;
-        response_array[2] = 0x01;
-        response_array[3] = level;
-        Serial.println(level);
+        response_array[2] = level;
       }
       // Battery level in mV
       if (write_value[COMMAND_KEY] == 0x03)
@@ -246,9 +266,8 @@ class MyCallbacks : public BLECharacteristicCallbacks
         level = ttgo->power->getBattVoltage();
         response_array[0] = 0x03;
         response_array[1] = 0x00;
-        response_array[2] = 0x02;
-        response_array[3] = level;
-        response_array[4] = level >> 2;
+        response_array[2] = level;
+        response_array[3] = level >> 2;
       }
       // FW version
       if (write_value[COMMAND_KEY] == 0x04)
@@ -256,6 +275,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[0] = 0x02;
         response_array[1] = 0x00;
         response_array[2] = 0x06;
+        response_array[2] = 0x00;
         response_array[3] = 0x04;
         response_array[4] = 0x00;
         response_array[5] = 0x03;
@@ -367,11 +387,13 @@ class MyCallbacks : public BLECharacteristicCallbacks
         }
         // implement other error codes
       }
-
-      read_characteristic->setValue(response_array);
+      Serial.println();
+      read_characteristic->setValue(response_array,29);
+      read_characteristic->notify();
 
       for (int i = 0; i < write_value.length(); i++)
         Serial.print(write_value[i]);
+        Serial.print(" ");
       Serial.println();
       Serial.println("*********");
     }
@@ -451,9 +473,8 @@ void set_layout_0(void)
   tft->drawString(String(values[0].getValue()), 0, 0);
   tft->drawString(values[0].getUnit(), value_w, 0);
   tft->drawString(values[0].getDesc(), value_w + 30, 0);
-  Serial.println(value_w);
 
-  tft->setTextSize(4);
+  tft->setTextSize(3);
   value_w = tft->textWidth(String(values[1].getValue()));
   tft->drawString(String(values[1].getValue()), 90, 90);
   tft->drawString(values[1].getUnit(), 90 + 50, 90);
@@ -502,21 +523,19 @@ void setupBLE(void)
   pServer->setCallbacks(new MyServerCallback);
   BLEService *pService = pServer->createService(SERVICE_UUID);
   read_characteristic = pService->createCharacteristic(
-      WRITE_UUID,
-      BLECharacteristic::PROPERTY_READ |
-          BLECharacteristic::PROPERTY_WRITE |
-          BLECharacteristic::PROPERTY_NOTIFY);
-  BLECharacteristic *write_characteristic = pService->createCharacteristic(
       READ_UUID,
       BLECharacteristic::PROPERTY_READ |
-          BLECharacteristic::PROPERTY_WRITE);
+          BLECharacteristic::PROPERTY_NOTIFY);
+  BLECharacteristic *write_characteristic = pService->createCharacteristic(
+      WRITE_UUID,
+      BLECharacteristic::PROPERTY_WRITE);
 
   write_characteristic->setCallbacks(new MyCallbacks());
   read_characteristic->setValue("read char");
   write_characteristic->setValue("write char");
 
   BLEDescriptor *desc = new BLEDescriptor(
-      BLEUUID((uint16_t)0x2901)); // User Description Descriptor
+      BLEUUID((uint16_t)0x2902)); // User Description Descriptor
   desc->setValue("Read Characteristic");
   read_characteristic->addDescriptor(desc);
   pService->start();
@@ -527,8 +546,22 @@ void setupBLE(void)
   pAdvertising->setScanResponse(true);
   pAdvertising->setMinPreferred(0x06); // functions that help with iPhone connections issue
   pAdvertising->setMinPreferred(0x12);
+
+  // ---- Custom Advertising ----
+  BLEAdvertisementData advData;
+
+  uint8_t cus_data[4] = {0xFF, 0xFF, 0x03, 0x00};
+
+  // Add it as manufacturer-specific data (type 0xFF in BLE spec)
+  advData.setManufacturerData((char *)cus_data);
+
+  // Add service UUID if you want clients to see it
+  advData.setCompleteServices(BLEUUID(SERVICE_UUID));
+
+  // Apply the custom advertising data
+  pAdvertising->setAdvertisementData(advData);
+
   BLEDevice::startAdvertising();
-  Serial.println("Characteristic defined! Now you can read it in your phone!");
 }
 
 void drawSTATUS(bool status)
@@ -592,7 +625,7 @@ void setup()
   rtc->check();
   setupBLE();
   // set font type
-  tft->setTextFont(0);
+  tft->setTextFont(2);
 
   // Draw initial connection status
   drawSTATUS(false);
