@@ -468,33 +468,43 @@ void set_layout_0(void)
   // tft->fillScreen(TFT_BLACK);
   tft->setTextColor(TFT_YELLOW, TFT_BLACK);
 
-  tft->setTextSize(1);
+  tft->setTextSize(2);
   int16_t value_w = tft->textWidth(String(values[0].getValue()));
-  tft->drawString(String(values[0].getValue()), 0, 0);
-  tft->drawString(values[0].getUnit(), value_w, 0);
-  tft->drawString(values[0].getDesc(), value_w + 30, 0);
+  tft->drawString(String(values[0].getValue()), 0, 10);
+  tft->drawString(values[0].getUnit(), 0 + value_w, 10);
+    tft->setTextSize(1);
+  tft->drawString(values[0].getDesc(), value_w + 50, 20);
 
   tft->setTextSize(3);
   value_w = tft->textWidth(String(values[1].getValue()));
-  tft->drawString(String(values[1].getValue()), 90, 90);
-  tft->drawString(values[1].getUnit(), 90 + 50, 90);
+  tft->drawString(String(values[1].getValue()), 85, 80);
+  tft->drawString(values[1].getUnit(), 85 + value_w, 80);
   tft->setTextSize(1);
-  tft->drawString(values[1].getDesc(), 90, 90 + 50);
+  tft->drawString(values[1].getDesc(), 85, 130);
 
-  // value_w = tft->textWidth(String(values[2].getValue()));
-  // tft->drawString(String(values[2].getValue()), 100, 200, 6);
-  // tft->drawString(values[2].getUnit(), 100 + value_w, 200, 6);
-  // tft->drawString(values[2].getDesc(), 100, 200, 2);
+  tft->setTextSize(2);
+  value_w = tft->textWidth(String(values[2].getValue()));
+  tft->drawString(String(values[2].getValue()), 90, 190);
+  tft->drawString(values[2].getUnit(), 90 + value_w, 190);
+  tft->setTextSize(1);
 
-  // value_w = tft->textWidth(String(values[3].getValue()));
-  // tft->drawString(String(values[3].getValue()), 100, 200, 6);
-  // tft->drawString(values[3].getUnit(), 100 + value_w, 200, 6);
-  // tft->drawString(values[3].getDesc(), 100, 200, 2);
+  tft->drawString(values[2].getDesc(), 100, 220);
 
-  // value_w = tft->textWidth(String(values[4].getValue()));
-  // tft->drawString(String(values[4].getValue()), 0, 200, 6);
-  // tft->drawString(values[4].getUnit(), 0 + value_w, 200, 6);
-  // tft->drawString(values[4].getDesc(), 0, 200, 2);
+  tft->setTextSize(2);
+  value_w = tft->textWidth(String(values[3].getValue()));
+  tft->drawString(String(values[3].getValue()), 170, 190);
+  tft->drawString(values[3].getUnit(), 170 + value_w, 190);
+  tft->setTextSize(1);
+
+  tft->drawString(values[3].getDesc(), 180, 220);
+
+    tft->setTextSize(2);
+  value_w = tft->textWidth(String(values[4].getValue()));
+  tft->drawString(String(values[4].getValue()), 0, 190);
+  tft->drawString(values[4].getUnit(), 0 + value_w, 190);
+  tft->setTextSize(1);
+
+  tft->drawString(values[4].getDesc(), 0, 220);
 
   // tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 50, 200, 4);
   // tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 5, 118, 7);
@@ -550,10 +560,10 @@ void setupBLE(void)
   // ---- Custom Advertising ----
   BLEAdvertisementData advData;
 
-  uint8_t cus_data[4] = {0xFF, 0xFF, 0x03, 0x00};
+  uint8_t man_data[4] = {0xFF, 0xFF, 0x03, 0x00};
 
   // Add it as manufacturer-specific data (type 0xFF in BLE spec)
-  advData.setManufacturerData((char *)cus_data);
+  advData.setManufacturerData((char *)man_data);
 
   // Add service UUID if you want clients to see it
   advData.setCompleteServices(BLEUUID(SERVICE_UUID));
@@ -566,8 +576,8 @@ void setupBLE(void)
 
 void drawSTATUS(bool status)
 {
-  String str = status ? "c" : "dc";
-  int16_t cW = tft->textWidth("c");
+  String str = status ? "con" : "dc";
+  int16_t cW = tft->textWidth("con");
   int16_t dW = tft->textWidth("dc");
   int16_t w = cW > dW ? cW : dW;
   w += 6;
