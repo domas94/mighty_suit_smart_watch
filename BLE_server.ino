@@ -10,6 +10,18 @@
 #include "fire.h"
 #include "config.h"
 
+#include "AudioFileSourcePROGMEM.h"
+#include "AudioFileSourceID3.h"
+#include "AudioGeneratorMP3.h"
+#include "AudioOutputI2S.h"
+
+#include "pika.h"
+
+AudioGeneratorMP3 *mp3;
+AudioFileSourcePROGMEM *file;
+AudioOutputI2S *out;
+AudioFileSourceID3 *id3;
+
 TTGOClass *ttgo;
 TFT_eSPI *tft;
 PCF8563_Class *rtc;
@@ -20,6 +32,7 @@ bool vibration = false;
 uint32_t interval = 0;
 int16_t x, y;
 bool irq = false;
+uint8_t test_brightness = 0;
 
 byte current_layout;
 byte new_layout;
@@ -62,7 +75,7 @@ void updateBatIcon(lv_icon_battery_t icon)
   int level = ttgo->power->getBattPercentage();
   w = level / 10 * 2 + 10;
   // clear previous value
-  tft->fillRoundRect(x - 30, y, w + 30, h + 10, 3, TFT_BLACK);
+  tft->fillRoundRect(x - 40, y, w + 40, h + 10, 3, TFT_BLACK);
   tft->setTextColor(TFT_YELLOW, TFT_BLACK);
 
   if (icon == LV_ICON_CALCULATION)
@@ -277,8 +290,8 @@ class MyCallbacks : public BLECharacteristicCallbacks
         level = ttgo->power->getBattVoltage();
         response_array[0] = 0x03;
         response_array[1] = 0x00;
-        response_array[2] = level;
-        response_array[3] = level >> 2;
+        response_array[2] = level >> 2;
+        response_array[3] = level;
       }
       // FW version
       if (write_value[COMMAND_KEY] == 0x04)
@@ -538,11 +551,18 @@ void set_alarm_layout(void)
   {
     current_layout = ALARM_LAYOUT;
     tft->fillScreen(TFT_BLACK);
+    tft->setSwapBytes(true);
+    tft->pushImage(56, 56, 128, 128, fire);
   }
 
   updateBatIcon(LV_ICON_CALCULATION);
-  tft->setSwapBytes(true);
-  tft->pushImage(56, 56, 128, 128, fire);
+
+  ttgo->setBrightness(test_brightness);
+  test_brightness += 30;
+  if (test_brightness > 240)
+    test_brightness = 0;
+    ttgo->motor->onec();
+    delay(200);
 }
 
 // set time layout
@@ -553,9 +573,9 @@ void set_time_layout(void)
   {
     // current_layout = TIME_LAYOUT;
     // tft->fillScreen(TFT_BLACK);
-    tft->setTextSize(2);
-    tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 100, 200);
-    tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 0, 200);
+    tft->setTextSize(1);
+    tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 140, 200);
+    tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 30, 200);
   }
 }
 
@@ -709,11 +729,32 @@ void setup()
   // Draw initial connection status
   drawSTATUS(false);
   updateBatIcon(LV_ICON_CALCULATION);
+
+  // AUDIO
+  ttgo->enableLDO3();
+
+  file = new AudioFileSourcePROGMEM(pika, sizeof(pika));
+  id3 = new AudioFileSourceID3(file);
+
+#if defined(STANDARD_BACKPLANE)
+  out = new AudioOutputI2S(0, 1);
+#elif defined(EXTERNAL_DAC_BACKPLANE)
+  out = new AudioOutputI2S();
+  // External DAC decoding
+  out->SetPinout(TWATCH_DAC_IIS_BCK, TWATCH_DAC_IIS_WS, TWATCH_DAC_IIS_DOUT);
+#endif
+  mp3 = new AudioGeneratorMP3();
+  mp3->begin(id3, out);
 }
 
 void loop()
 {
-
+  if (mp3->isRunning())
+  {
+    if (!mp3->loop())
+      mp3->stop();
+    Serial.println("test");
+  }
   if (millis() - interval > 1000)
   {
 
@@ -765,6 +806,7 @@ void loop()
       current_page++;
       if (current_page > 7)
       {
+        fire_alarm = true;
         current_page = 0;
       }
     }
