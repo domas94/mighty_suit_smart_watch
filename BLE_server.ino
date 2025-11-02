@@ -10,17 +10,17 @@
 #include "fire.h"
 #include "config.h"
 
-#include "AudioFileSourcePROGMEM.h"
-#include "AudioFileSourceID3.h"
-#include "AudioGeneratorMP3.h"
-#include "AudioOutputI2S.h"
+// #include "AudioFileSourcePROGMEM.h"
+// #include "AudioFileSourceID3.h"
+// #include "AudioGeneratorMP3.h"
+// #include "AudioOutputI2S.h"
 
-#include "pika.h"
+// #include "pika.h"
 
-AudioGeneratorMP3 *mp3;
-AudioFileSourcePROGMEM *file;
-AudioOutputI2S *out;
-AudioFileSourceID3 *id3;
+// AudioGeneratorMP3 *mp3;
+// AudioFileSourcePROGMEM *file;
+// AudioOutputI2S *out;
+// AudioFileSourceID3 *id3;
 
 TTGOClass *ttgo;
 TFT_eSPI *tft;
@@ -33,6 +33,7 @@ uint32_t interval = 0;
 int16_t x, y;
 bool irq = false;
 uint8_t test_brightness = 0;
+bool init_done = false;
 
 byte current_layout;
 byte new_layout;
@@ -263,19 +264,21 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[15] = 0x00;
         response_array[16] = 0x1A;
         response_array[17] = 0x00;
-        response_array[18] = 0x1B;
+        // response_array[18] = 0x1B;
+        // response_array[19] = 0x00;
+        // response_array[20] = 0x1C;
+        // response_array[21] = 0x00;
+        // response_array[22] = 0x1D;
+        // response_array[23] = 0x00;
+        // response_array[24] = 0x1E;
+        // response_array[25] = 0x00;
+        // response_array[26] = 0x20;
+        // response_array[27] = 0x00;
+        response_array[18] = 0x21;
         response_array[19] = 0x00;
-        response_array[20] = 0x1C;
+        response_array[20] = 0x23;
         response_array[21] = 0x00;
-        response_array[22] = 0x1D;
-        response_array[23] = 0x00;
-        response_array[24] = 0x1E;
-        response_array[25] = 0x00;
-        response_array[26] = 0x20;
-        response_array[27] = 0x00;
-        response_array[28] = 0x21;
-        response_array[29] = 0x00;
-        response_array_size = 30;
+        response_array_size = 22;
       }
       int level;
       // Battery level in %
@@ -303,14 +306,14 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[0] = 0x02;
         response_array[1] = 0x00;
         response_array[2] = 0x06;
-        response_array[2] = 0x00;
-        response_array[3] = 0x04;
-        response_array[4] = 0x00;
-        response_array[5] = 0x03;
-        response_array[6] = 0x01;
-        response_array[7] = 0x00;
-        response_array[8] = 0x01;
-        response_array_size = 9;
+        response_array[3] = 0x00;
+        response_array[4] = 0x04;
+        response_array[5] = 0x00;
+        response_array[6] = 0x03;
+        response_array[7] = 0x01;
+        response_array[8] = 0x00;
+        response_array[9] = 0x01;
+        response_array_size = 10;
       }
       // Set number of watch pages
       if (write_value[COMMAND_KEY] == 0x17)
@@ -378,22 +381,27 @@ class MyCallbacks : public BLECharacteristicCallbacks
       {
         response_array[0] = 0x19;
         response_array[1] = 0x00;
-        response_array[2] = 0x02;
         // accepted
+        response_array[2] = 0x00;
         response_array[3] = 0x00;
-        response_array[4] = 0x00;
-        response_array_size = 5;
-        if (write_value[3] > 1 && write_value[3] < 8)
+        response_array_size = 4;
+        // check if page exists
+        if (write_value[2] > 0 && write_value[2] < max_pages)
         {
-          pages[write_value[3] - 1].setLayoutType(write_value[4]);
+          // check if layout exists
+          if (write_value[3] == CRITICAL_INFO_LAYOUT || write_value[3] == NON_CRITICAL_INFO_LAYOUT)
+            pages[write_value[2]].setLayoutType(write_value[3]);
+          else
+          {
+            // layout doesn't exist
+            response_array[3] = 0x10;
+          }
         }
         else
         {
           // page doesn't exist error code
           response_array[3] = 0x05;
         }
-        // TODO: Add layout doesn't exist, first need to implement layouts
-        //  response_array[3] = 0x10;
       }
 
       // set number of digits for page
@@ -401,24 +409,45 @@ class MyCallbacks : public BLECharacteristicCallbacks
       {
         response_array[0] = 0x1A;
         response_array[1] = 0x00;
-        response_array[2] = 0x02;
         // accepted
+        response_array[2] = 0x00;
         response_array[3] = 0x00;
-        response_array[4] = 0x00;
-        response_array_size = 5;
+        response_array_size = 4;
         // check if page exists
-        if (write_value[3] > 1 && write_value[3] < 8)
+        if (write_value[2] > 0 && write_value[2] < max_pages)
         {
           // check if value exists
-          if (write_value[4] > 1 && write_value[4] < (pages[write_value[3] - 1].getMaxPageNum()))
-            pages[write_value[3] - 1].setMaxDigitNum(write_value[5], write_value[4] - 1);
+          if (write_value[3] >= 0 && write_value[3] < pages[write_value[2]].getMaxPageNum())
+          {
+            // check digit number
+            if (write_value[4] > 0 && write_value[3] < 4)
+            {
+              pages[write_value[2]]
+                  .values[write_value[3]]
+                  .setValueDigits(write_value[4]);
+            }
+            else if (write_value[4] < 0)
+            {
+              // number of digits too low
+              response_array[2] = 0x12;
+            }
+            else
+            {
+              // number of digits too high
+              response_array[2] = 0x13;
+            }
+          }
+          else
+          {
+            // value doesn't exist
+            response_array[2] = 0x13;
+          }
         }
         else
         {
           // page doesn't exist error code
-          response_array[3] = 0x05;
+          response_array[2] = 0x05;
         }
-        // implement other error codes
       }
 
       // set value for page N, value M
@@ -440,6 +469,8 @@ class MyCallbacks : public BLECharacteristicCallbacks
             value_for_page += write_value[5] << 1;
             value_for_page += write_value[6] << 2;
             value_for_page += write_value[7] << 3;
+            Serial.println("value_for_page");
+            Serial.println(value_for_page);
             pages[write_value[2]]
                 .values[write_value[3]]
                 .setValue(value_for_page);
@@ -455,6 +486,17 @@ class MyCallbacks : public BLECharacteristicCallbacks
           // page doesn't exist error code
           response_array[2] = 0x05;
         }
+      }
+
+      // Init done
+      if (write_value[COMMAND_KEY] == 0x23)
+      {
+        response_array[0] = 0x23;
+        response_array[1] = 0x00;
+        response_array[2] = 0x00;
+        response_array[3] = 0x00;
+        response_array[4] = 0x00;
+        response_array_size = 5;
       }
       Serial.println();
       read_characteristic->setValue(response_array, response_array_size);
@@ -530,11 +572,11 @@ void set_layout_0(void)
 
   if (pages[current_page].getMaxPageNum() > 4)
   {
-    value_w = tft->textWidth(String(pages[current_page].values[4].getValue()).substring(0, pages[current_page].values[3].getValueDigits()));
-    tft->drawString(String(pages[current_page].values[4].getValue()).substring(0, pages[current_page].values[3].getValueDigits()), 0, 200);
-    tft->drawString(pages[current_page].values[4].getUnit(), 0 + value_w, 200);
-
-    tft->drawString(pages[current_page].values[4].getDesc(), 0, 220);
+    // value_w = tft->textWidth(String(pages[current_page].values[4].getValue()).substring(0, pages[current_page].values[3].getValueDigits()));
+    // tft->drawString(String(pages[current_page].values[4].getValue()).substring(0, pages[current_page].values[3].getValueDigits()), 0, 200);
+    // tft->drawString(pages[current_page].values[4].getUnit(), 0 + value_w, 200);
+    tft->setTextSize(2);
+    tft->drawString(pages[current_page].values[4].getDesc(), 0, 200);
   }
 
   drawSTATUS(deviceConnected);
@@ -599,11 +641,11 @@ void set_alarm_layout(void)
     tft->setSwapBytes(true);
     tft->pushImage(56, 56, 128, 128, fire);
   }
-  if (!(mp3->isRunning()))
-  {
-    Serial.println("STARTING MP3");
-    mp3->begin(id3, out);
-  }
+  // if (!(mp3->isRunning()))
+  // {
+  //   Serial.println("STARTING MP3");
+  //   mp3->begin(id3, out);
+  // }
 
   updateBatIcon(LV_ICON_CALCULATION);
 
@@ -693,7 +735,7 @@ void setupBLE(void)
 
 void drawSTATUS(bool status)
 {
-  String str = status ? "con" : "dc";
+  String str = status ? "cn" : "dc";
   tft->setTextSize(1);
 
   int16_t cW = tft->textWidth("cn");
@@ -711,38 +753,36 @@ void drawSTATUS(bool status)
 void setup()
 {
   Serial.begin(115200);
-  Serial.println("Starting!");
+  Serial.println("Start");
 
-  pages[0].values[0].setValue(123);
-  pages[0].values[0].setDesc("Gas level");
-  pages[0].values[0].setUnit("ppm");
-  pages[0].values[1].setValue(67);
-  pages[0].values[1].setDesc("Infr sensor");
-  pages[0].values[1].setUnit("%");
-  pages[0].values[2].setValue(89);
-  pages[0].values[2].setDesc("Left");
-  pages[0].values[2].setUnit("C");
-  pages[0].values[3].setValue(35);
-  pages[0].values[3].setDesc("Right");
-  pages[0].values[3].setUnit("C");
-  pages[0].values[4].setValue(0);
+  // pages[0].values[0].setValue(123);
+  // pages[0].values[0].setDesc("Gas level");
+  // pages[0].values[0].setUnit("ppm");
+  // pages[0].values[1].setValue(67);
+  // pages[0].values[1].setDesc("Infr sensor");
+  // pages[0].values[1].setUnit("%");
+  // pages[0].values[2].setValue(89);
+  // pages[0].values[2].setDesc("Left");
+  // pages[0].values[2].setUnit("C");
+  // pages[0].values[3].setValue(35);
+  // pages[0].values[3].setDesc("Right");
+  // pages[0].values[3].setUnit("C");
+  // pages[0].values[4].setValue(0);
   pages[0].values[4].setDesc("Boots");
-  pages[0].values[4].setUnit("");
-  pages[1].values[0].setValue(31);
-  pages[1].values[0].setDesc("Temp Air");
-  pages[1].values[0].setUnit("C");
-  pages[1].values[1].setValue(45);
-  pages[1].values[1].setDesc("Temp In");
-  pages[1].values[1].setUnit("C");
-  pages[1].values[2].setValue(132);
-  pages[1].values[2].setDesc("Press");
-  pages[1].values[2].setUnit("hPa");
-  pages[1].values[3].setValue(67);
-  pages[1].values[3].setDesc("Heart rate");
-  pages[1].values[3].setUnit("BPM");
-  pages[1].values[4].setValue(0);
-  pages[1].values[4].setDesc("Boots");
-  pages[1].values[4].setUnit("");
+  // pages[0].values[4].setUnit("");
+  // pages[1].values[0].setValue(31);
+  // pages[1].values[0].setDesc("Temp Air");
+  // pages[1].values[0].setUnit("C");
+  // pages[1].values[1].setValue(45);
+  // pages[1].values[1].setDesc("Temp In");
+  // pages[1].values[1].setUnit("C");
+  // pages[1].values[2].setValue(132);
+  // pages[1].values[2].setDesc("Press");
+  // pages[1].values[2].setUnit("hPa");
+  // pages[1].values[3].setValue(67);
+  // pages[1].values[3].setDesc("Heart rate");
+  // pages[1].values[3].setUnit("BPM");
+ 
 
   pages[1].setLayoutType(NON_CRITICAL_INFO_LAYOUT);
 
@@ -779,34 +819,34 @@ void setup()
   drawSTATUS(false);
   updateBatIcon(LV_ICON_CALCULATION);
 
-  // AUDIO
-  ttgo->enableLDO3();
+  //   // AUDIO
+  //   ttgo->enableLDO3();
 
-  file = new AudioFileSourcePROGMEM(pika, sizeof(pika));
-  id3 = new AudioFileSourceID3(file);
+  //   file = new AudioFileSourcePROGMEM(pika, sizeof(pika));
+  //   id3 = new AudioFileSourceID3(file);
 
-#if defined(STANDARD_BACKPLANE)
-  out = new AudioOutputI2S(0, 1);
-#elif defined(EXTERNAL_DAC_BACKPLANE)
-  out = new AudioOutputI2S();
-  // External DAC decoding
-  out->SetPinout(TWATCH_DAC_IIS_BCK, TWATCH_DAC_IIS_WS, TWATCH_DAC_IIS_DOUT);
-#endif
-  mp3 = new AudioGeneratorMP3();
+  // #if defined(STANDARD_BACKPLANE)
+  //   out = new AudioOutputI2S(0, 1);
+  // #elif defined(EXTERNAL_DAC_BACKPLANE)
+  //   out = new AudioOutputI2S();
+  //   // External DAC decoding
+  //   out->SetPinout(TWATCH_DAC_IIS_BCK, TWATCH_DAC_IIS_WS, TWATCH_DAC_IIS_DOUT);
+  // #endif
+  //   mp3 = new AudioGeneratorMP3();
 }
 
 void loop()
 {
-  if (mp3->isRunning())
-  {
-    if (!mp3->loop())
-    {
-      mp3->stop();
-      file = new AudioFileSourcePROGMEM(pika, sizeof(pika));
-      id3 = new AudioFileSourceID3(file);
-      mp3 = new AudioGeneratorMP3();
-    }
-  }
+  // if (mp3->isRunning())
+  // {
+  //   if (!mp3->loop())
+  //   {
+  //     mp3->stop();
+  //     file = new AudioFileSourcePROGMEM(pika, sizeof(pika));
+  //     id3 = new AudioFileSourceID3(file);
+  //     mp3 = new AudioGeneratorMP3();
+  //   }
+  // }
   if (millis() - interval > 1000)
   {
 
