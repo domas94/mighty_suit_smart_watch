@@ -226,13 +226,12 @@ class MyCallbacks : public BLECharacteristicCallbacks
     if (write_value.length() > 0)
     {
       Serial.println("START*********");
-      Serial.print("New value: ");
+      Serial.print("Write value length: ");
+      Serial.println(write_value.length() + 1);
 
       write_value.c_str();
       // clear response
       memset(response_array, 0, sizeof(response_array));
-
-      Serial.println(write_value.length());
 
       for (int i = 0; i < write_value.length(); i++)
       {
@@ -322,12 +321,11 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array_size = 4;
 
         // check if the desired watch page number is out of limits
-        if (write_value[2] > 0 && write_value[2] < 7)
+        if (write_value[2] > 0 && write_value[2] <= 7)
         {
-          max_pages = write_value[2]-1;
+          max_pages = write_value[2] - 1;
           Serial.println("Max page number set to");
-          Serial.println(max_pages+1);
-
+          Serial.println(max_pages + 1);
         }
         // Number of pages too low
         if (write_value[2] < 0)
@@ -349,12 +347,14 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[2] = 0x00;
         response_array[3] = 0x00;
         response_array_size = 4;
-        // if page exists
-        if (write_value[2] > 1 && write_value[2] < max_pages)
+        // check if page exists
+        if (write_value[2] >= 0 && write_value[2] <= max_pages)
         {
           // if correct number of values
           if (write_value[3] > 1 && write_value[3] < 8)
           {
+            Serial.println("Max page num set to:");
+            Serial.println(write_value[3]);
             pages[write_value[2]].setMaxPageNum(write_value[3]);
           }
           // number of values too low
@@ -384,11 +384,16 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[3] = 0x00;
         response_array_size = 4;
         // check if page exists
-        if (write_value[2] > 0 && write_value[2] < max_pages)
+        if (write_value[2] >= 0 && write_value[2] <= max_pages)
         {
           // check if layout exists
           if (write_value[3] == CRITICAL_INFO_LAYOUT || write_value[3] == NON_CRITICAL_INFO_LAYOUT)
+          {
+            Serial.println("Page layout set to:");
+            Serial.println(write_value[3]);
             pages[write_value[2]].setLayoutType(write_value[3]);
+          }
+
           else
           {
             // layout doesn't exist
@@ -402,7 +407,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
         }
       }
 
-      // set number of digits for page
+      // set number of digits for a page
       if (write_value[COMMAND_KEY] == 0x1A)
       {
         response_array[0] = 0x1A;
@@ -412,14 +417,17 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[3] = 0x00;
         response_array_size = 4;
         // check if page exists
-        if (write_value[2] > 0 && write_value[2] < max_pages)
+        if (write_value[2] >= 0 && write_value[2] <= max_pages)
         {
           // check if value exists
-          if (write_value[3] >= 0 && write_value[3] < pages[write_value[2]].getMaxPageNum())
+          if (write_value[3] >= 0 && write_value[3] <= pages[write_value[2]].getMaxPageNum())
           {
+            Serial.println(write_value[4]);
             // check digit number
             if (write_value[4] > 0 && write_value[4] < 4)
             {
+              Serial.print("Set digits for a page");
+              Serial.println(write_value[4]);
               pages[write_value[2]]
                   .values[write_value[3]]
                   .setValueDigits(write_value[4]);
@@ -429,7 +437,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
               // number of digits too low
               response_array[2] = 0x12;
             }
-            else
+            else if (write_value[4] > 3)
             {
               // number of digits too high
               response_array[2] = 0x13;
@@ -458,7 +466,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[3] = 0x00;
         response_array_size = 4;
         // check if page exists
-        if (write_value[2] > 0 && write_value[2] < max_pages)
+        if (write_value[2] >= 0 && write_value[2] <= max_pages)
         {
           // check if value exists
           if (write_value[3] >= 0 && write_value[3] < pages[write_value[2]].getMaxPageNum())
@@ -467,7 +475,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
             value_for_page += write_value[5] << 8;
             value_for_page += write_value[6] << 16;
             value_for_page += write_value[7] << 24;
-            Serial.println("value_for_page");
+            Serial.print("Value_for_page");
             Serial.println(value_for_page);
             pages[write_value[2]]
                 .values[write_value[3]]
@@ -493,8 +501,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[1] = 0x00;
         response_array[2] = 0x00;
         response_array[3] = 0x00;
-        response_array[4] = 0x00;
-        response_array_size = 5;
+        response_array_size = 4;
         init_done = true;
         Serial.println("Init done");
       }
