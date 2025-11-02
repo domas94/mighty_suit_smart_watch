@@ -8,14 +8,13 @@
 #include <BLEUtils.h>
 #include <BLEServer.h>
 #include "fire.h"
+// #include "pika.h"
 #include "config.h"
 
 // #include "AudioFileSourcePROGMEM.h"
 // #include "AudioFileSourceID3.h"
 // #include "AudioGeneratorMP3.h"
 // #include "AudioOutputI2S.h"
-
-// #include "pika.h"
 
 // AudioGeneratorMP3 *mp3;
 // AudioFileSourcePROGMEM *file;
@@ -43,10 +42,13 @@ byte current_page = 0;
 
 BLECharacteristic *read_characteristic;
 
+uint8_t response_array[131];
+
 #define SERVICE_UUID "9ff3f90c-9a35-446e-9fd9-68a5a1d792ae"
 #define WRITE_UUID "862c9860-0d89-4caf-8902-dc615e1181e9"
 #define READ_UUID "862c9860-1d89-4caf-8902-dc615e1181e9"
 #define TFT_GREY 0x5AEB
+#define COMMAND_KEY 0
 #define CRITICAL_INFO_LAYOUT 0
 #define NON_CRITICAL_INFO_LAYOUT 1
 #define ALARM_LAYOUT 8
@@ -97,11 +99,6 @@ void updateBatIcon(lv_icon_battery_t icon)
   tft->drawString(str, x - value_w, y);
   tft->fillRoundRect(x, y + 5, w, h, 3, color);
 }
-
-// delete later, right now used for testing purposes
-#define COMMAND_KEY 0
-
-uint8_t response_array[131];
 
 class ValueAttrs
 {
@@ -228,7 +225,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
 
     if (write_value.length() > 0)
     {
-      Serial.println("*********");
+      Serial.println("START*********");
       Serial.print("New value: ");
 
       write_value.c_str();
@@ -258,12 +255,14 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[9] = 0x00;
         response_array[10] = 0x04;
         response_array[11] = 0x00;
-        response_array[12] = 0x18;
+        response_array[12] = 0x17;
         response_array[13] = 0x00;
-        response_array[14] = 0x19;
+        response_array[14] = 0x18;
         response_array[15] = 0x00;
-        response_array[16] = 0x1A;
+        response_array[16] = 0x19;
         response_array[17] = 0x00;
+        response_array[18] = 0x1A;
+        response_array[19] = 0x00;
         // response_array[18] = 0x1B;
         // response_array[19] = 0x00;
         // response_array[20] = 0x1C;
@@ -274,11 +273,11 @@ class MyCallbacks : public BLECharacteristicCallbacks
         // response_array[25] = 0x00;
         // response_array[26] = 0x20;
         // response_array[27] = 0x00;
-        response_array[18] = 0x21;
-        response_array[19] = 0x00;
-        response_array[20] = 0x23;
+        response_array[20] = 0x21;
         response_array[21] = 0x00;
-        response_array_size = 22;
+        response_array[22] = 0x23;
+        response_array[23] = 0x00;
+        response_array_size = 24;
       }
       int level;
       // Battery level in %
@@ -296,47 +295,47 @@ class MyCallbacks : public BLECharacteristicCallbacks
         level = ttgo->power->getBattVoltage();
         response_array[0] = 0x03;
         response_array[1] = 0x00;
-        response_array[2] = level >> 2;
-        response_array[3] = level;
+        response_array[2] = level & 0xFF;
+        response_array[3] = (level >> 8) & 0xFF;
         response_array_size = 4;
       }
       // FW version
       if (write_value[COMMAND_KEY] == 0x04)
       {
-        response_array[0] = 0x02;
+        response_array[0] = 0x04;
         response_array[1] = 0x00;
-        response_array[2] = 0x06;
-        response_array[3] = 0x00;
-        response_array[4] = 0x04;
-        response_array[5] = 0x00;
-        response_array[6] = 0x03;
-        response_array[7] = 0x01;
-        response_array[8] = 0x00;
-        response_array[9] = 0x01;
-        response_array_size = 10;
+        response_array[2] = 0x03;
+        response_array[3] = 0x01;
+        response_array[4] = 0x00;
+        response_array[5] = 0x01;
+
+        response_array_size = 6;
       }
       // Set number of watch pages
       if (write_value[COMMAND_KEY] == 0x17)
       {
         response_array[0] = 0x17;
         response_array[1] = 0x00;
-        response_array[2] = 0x02;
+        // accepted
+        response_array[2] = 0x00;
         response_array[3] = 0x00;
-        response_array[4] = 0x00;
-        response_array_size = 5;
+        response_array_size = 4;
 
         // check if the desired watch page number is out of limits
-        if (write_value[3] > 1 && write_value[3] < 8)
+        if (write_value[2] > 0 && write_value[2] < 7)
         {
-          max_pages = write_value[2];
+          max_pages = write_value[2]-1;
+          Serial.println("Max page number set to");
+          Serial.println(max_pages+1);
+
         }
         // Number of pages too low
-        if (write_value[3] < 1)
+        if (write_value[2] < 0)
         {
           response_array[2] = 0x0C;
         }
         // Number of pages too high
-        if (write_value[3] > 8)
+        if (write_value[2] > 7)
         {
           response_array[2] = 0x0D;
         }
@@ -346,34 +345,33 @@ class MyCallbacks : public BLECharacteristicCallbacks
       {
         response_array[0] = 0x18;
         response_array[1] = 0x00;
-        response_array[2] = 0x02;
         // accepted
+        response_array[2] = 0x00;
         response_array[3] = 0x00;
-        response_array[4] = 0x00;
-        response_array_size = 5;
+        response_array_size = 4;
         // if page exists
-        if (write_value[3] > 1 && write_value[3] < max_pages)
+        if (write_value[2] > 1 && write_value[2] < max_pages)
         {
           // if correct number of values
-          if (write_value[4] > 1 && write_value[4] < 8)
+          if (write_value[3] > 1 && write_value[3] < 8)
           {
-            pages[write_value[3] - 1].setMaxPageNum(write_value[4]);
+            pages[write_value[2]].setMaxPageNum(write_value[3]);
           }
           // number of values too low
-          if (write_value[4] > 8)
+          if (write_value[3] < 1)
           {
-            response_array[4] = 0x0E;
+            response_array[2] = 0x0E;
           }
           // number of values too high
-          if (write_value[4] < 1)
+          if (write_value[3] > 8)
           {
-            response_array[4] = 0x0F;
+            response_array[2] = 0x0F;
           }
         }
         // page doesn't exist
-        if (write_value[3] < 1 || write_value[3] > max_pages)
+        if (write_value[2] < 0 || write_value[2] > max_pages)
         {
-          response_array[3] = 0x05;
+          response_array[2] = 0x05;
         }
       }
       // set page layout type
@@ -394,13 +392,13 @@ class MyCallbacks : public BLECharacteristicCallbacks
           else
           {
             // layout doesn't exist
-            response_array[3] = 0x10;
+            response_array[2] = 0x10;
           }
         }
         else
         {
           // page doesn't exist error code
-          response_array[3] = 0x05;
+          response_array[2] = 0x05;
         }
       }
 
@@ -420,7 +418,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
           if (write_value[3] >= 0 && write_value[3] < pages[write_value[2]].getMaxPageNum())
           {
             // check digit number
-            if (write_value[4] > 0 && write_value[3] < 4)
+            if (write_value[4] > 0 && write_value[4] < 4)
             {
               pages[write_value[2]]
                   .values[write_value[3]]
@@ -440,7 +438,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
           else
           {
             // value doesn't exist
-            response_array[2] = 0x13;
+            response_array[2] = 0x11;
           }
         }
         else
@@ -466,9 +464,9 @@ class MyCallbacks : public BLECharacteristicCallbacks
           if (write_value[3] >= 0 && write_value[3] < pages[write_value[2]].getMaxPageNum())
           {
             value_for_page += write_value[4] << 0;
-            value_for_page += write_value[5] << 1;
-            value_for_page += write_value[6] << 2;
-            value_for_page += write_value[7] << 3;
+            value_for_page += write_value[5] << 8;
+            value_for_page += write_value[6] << 16;
+            value_for_page += write_value[7] << 24;
             Serial.println("value_for_page");
             Serial.println(value_for_page);
             pages[write_value[2]]
@@ -497,17 +495,14 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[3] = 0x00;
         response_array[4] = 0x00;
         response_array_size = 5;
+        init_done = true;
+        Serial.println("Init done");
       }
       Serial.println();
       read_characteristic->setValue(response_array, response_array_size);
       read_characteristic->notify();
 
-      for (int i = 0; i < write_value.length(); i++)
-      {
-        Serial.print(write_value[i]);
-        Serial.print(" ");
-      }
-      Serial.println("*********");
+      Serial.println("END*********");
     }
 
     if (write_value.length() <= 0)
@@ -782,7 +777,6 @@ void setup()
   // pages[1].values[3].setValue(67);
   // pages[1].values[3].setDesc("Heart rate");
   // pages[1].values[3].setUnit("BPM");
- 
 
   pages[1].setLayoutType(NON_CRITICAL_INFO_LAYOUT);
 
@@ -870,18 +864,21 @@ void loop()
     ttgo->power->clearIRQ();
 
     interval = millis();
-    if (fire_alarm)
+    if (init_done)
     {
-      set_time_layout();
-      set_alarm_layout();
-    }
-    else if (pages[current_page].getLayout() == CRITICAL_INFO_LAYOUT)
-    {
-      set_layout_0();
-    }
-    else if (pages[current_page].getLayout() == NON_CRITICAL_INFO_LAYOUT)
-    {
-      set_layout_1();
+      if (fire_alarm)
+      {
+        set_time_layout();
+        set_alarm_layout();
+      }
+      else if (pages[current_page].getLayout() == CRITICAL_INFO_LAYOUT)
+      {
+        set_layout_0();
+      }
+      else if (pages[current_page].getLayout() == NON_CRITICAL_INFO_LAYOUT)
+      {
+        set_layout_1();
+      }
     }
 
     if (vibration)
@@ -897,7 +894,7 @@ void loop()
       delay(100);
       current_page++;
       tft->fillScreen(TFT_BLACK);
-      if (current_page > 7)
+      if (current_page > max_pages)
       {
         fire_alarm = true;
         current_page = 0;
