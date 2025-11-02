@@ -223,6 +223,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
   {
     std::string write_value = write_characteristic->getValue();
     int response_array_size = 0;
+    int value_for_page = 0;
 
     if (write_value.length() > 0)
     {
@@ -241,7 +242,6 @@ class MyCallbacks : public BLECharacteristicCallbacks
       }
       Serial.println();
 
-      // TODO: promijeniti u write_value[0], za sada je ovako lakše testirati preko mobitela
       //  Identify capability
       if (write_value[COMMAND_KEY] == 0x01)
       {
@@ -419,6 +419,42 @@ class MyCallbacks : public BLECharacteristicCallbacks
           response_array[3] = 0x05;
         }
         // implement other error codes
+      }
+
+      // set value for page N, value M
+      if (write_value[COMMAND_KEY] == 0x21)
+      {
+        response_array[0] = 0x21;
+        response_array[1] = 0x00;
+        // accepted
+        response_array[2] = 0x00;
+        response_array[3] = 0x00;
+        response_array_size = 4;
+        // check if page exists
+        if (write_value[2] > 0 && write_value[2] < max_pages)
+        {
+          // check if value exists
+          if (write_value[3] >= 0 && write_value[3] < pages[write_value[2]].getMaxPageNum())
+          {
+            value_for_page += write_value[4] << 0;
+            value_for_page += write_value[5] << 1;
+            value_for_page += write_value[6] << 2;
+            value_for_page += write_value[7] << 3;
+            pages[write_value[2]]
+                .values[write_value[3]]
+                .setValue(value_for_page);
+          }
+          else
+          {
+            // value doesn't exist error code
+            response_array[2] = 0x11;
+          }
+        }
+        else
+        {
+          // page doesn't exist error code
+          response_array[2] = 0x05;
+        }
       }
       Serial.println();
       read_characteristic->setValue(response_array, response_array_size);
@@ -769,7 +805,6 @@ void loop()
       file = new AudioFileSourcePROGMEM(pika, sizeof(pika));
       id3 = new AudioFileSourceID3(file);
       mp3 = new AudioGeneratorMP3();
-
     }
   }
   if (millis() - interval > 1000)
