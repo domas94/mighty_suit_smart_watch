@@ -222,6 +222,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
   void onWrite(BLECharacteristic *write_characteristic)
   {
     std::string write_value = write_characteristic->getValue();
+    int response_array_size = 0;
 
     if (write_value.length() > 0)
     {
@@ -274,6 +275,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[27] = 0x00;
         response_array[28] = 0x21;
         response_array[29] = 0x00;
+        response_array_size = 30;
       }
       int level;
       // Battery level in %
@@ -283,6 +285,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[0] = 0x02;
         response_array[1] = 0x00;
         response_array[2] = level;
+        response_array_size = 3;
       }
       // Battery level in mV
       if (write_value[COMMAND_KEY] == 0x03)
@@ -292,6 +295,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[1] = 0x00;
         response_array[2] = level >> 2;
         response_array[3] = level;
+        response_array_size = 4;
       }
       // FW version
       if (write_value[COMMAND_KEY] == 0x04)
@@ -306,6 +310,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[6] = 0x01;
         response_array[7] = 0x00;
         response_array[8] = 0x01;
+        response_array_size = 9;
       }
       // Set number of watch pages
       if (write_value[COMMAND_KEY] == 0x17)
@@ -315,6 +320,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[2] = 0x02;
         response_array[3] = 0x00;
         response_array[4] = 0x00;
+        response_array_size = 5;
 
         // check if the desired watch page number is out of limits
         if (write_value[3] > 1 && write_value[3] < 8)
@@ -341,6 +347,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
         // accepted
         response_array[3] = 0x00;
         response_array[4] = 0x00;
+        response_array_size = 5;
         // if page exists
         if (write_value[3] > 1 && write_value[3] < max_pages)
         {
@@ -375,6 +382,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
         // accepted
         response_array[3] = 0x00;
         response_array[4] = 0x00;
+        response_array_size = 5;
         if (write_value[3] > 1 && write_value[3] < 8)
         {
           pages[write_value[3] - 1].setLayoutType(write_value[4]);
@@ -397,6 +405,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
         // accepted
         response_array[3] = 0x00;
         response_array[4] = 0x00;
+        response_array_size = 5;
         // check if page exists
         if (write_value[3] > 1 && write_value[3] < 8)
         {
@@ -412,13 +421,14 @@ class MyCallbacks : public BLECharacteristicCallbacks
         // implement other error codes
       }
       Serial.println();
-      read_characteristic->setValue(response_array, 29);
+      read_characteristic->setValue(response_array, response_array_size);
       read_characteristic->notify();
 
       for (int i = 0; i < write_value.length(); i++)
+      {
         Serial.print(write_value[i]);
-      Serial.print(" ");
-      Serial.println();
+        Serial.print(" ");
+      }
       Serial.println("*********");
     }
 
@@ -546,13 +556,17 @@ void set_layout_1(void)
 // set alarm layout
 void set_alarm_layout(void)
 {
-
   if (current_layout != ALARM_LAYOUT)
   {
     current_layout = ALARM_LAYOUT;
     tft->fillScreen(TFT_BLACK);
     tft->setSwapBytes(true);
     tft->pushImage(56, 56, 128, 128, fire);
+  }
+  if (!(mp3->isRunning()))
+  {
+    Serial.println("STARTING MP3");
+    mp3->begin(id3, out);
   }
 
   updateBatIcon(LV_ICON_CALCULATION);
@@ -561,8 +575,8 @@ void set_alarm_layout(void)
   test_brightness += 30;
   if (test_brightness > 240)
     test_brightness = 0;
-    ttgo->motor->onec();
-    delay(200);
+  ttgo->motor->onec();
+  delay(200);
 }
 
 // set time layout
@@ -572,7 +586,6 @@ void set_time_layout(void)
   if (current_layout != TIME_LAYOUT)
   {
     // current_layout = TIME_LAYOUT;
-    // tft->fillScreen(TFT_BLACK);
     tft->setTextSize(1);
     tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 140, 200);
     tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 30, 200);
@@ -744,7 +757,6 @@ void setup()
   out->SetPinout(TWATCH_DAC_IIS_BCK, TWATCH_DAC_IIS_WS, TWATCH_DAC_IIS_DOUT);
 #endif
   mp3 = new AudioGeneratorMP3();
-  mp3->begin(id3, out);
 }
 
 void loop()
@@ -752,8 +764,13 @@ void loop()
   if (mp3->isRunning())
   {
     if (!mp3->loop())
+    {
       mp3->stop();
-    Serial.println("test");
+      file = new AudioFileSourcePROGMEM(pika, sizeof(pika));
+      id3 = new AudioFileSourceID3(file);
+      mp3 = new AudioGeneratorMP3();
+
+    }
   }
   if (millis() - interval > 1000)
   {
@@ -804,6 +821,7 @@ void loop()
     {
       delay(100);
       current_page++;
+      tft->fillScreen(TFT_BLACK);
       if (current_page > 7)
       {
         fire_alarm = true;
