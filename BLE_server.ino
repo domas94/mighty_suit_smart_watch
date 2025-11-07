@@ -7,7 +7,7 @@
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
-#include "fire_img.h"
+#include "head_fire.h"
 #include "fire_alarm.h"
 #include "config.h"
 
@@ -633,7 +633,7 @@ void set_alarm_layout(void)
     current_layout = ALARM_LAYOUT;
     tft->fillScreen(TFT_BLACK);
     tft->setSwapBytes(true);
-    tft->pushImage(56, 56, 128, 128, fire);
+    tft->pushImage(56, 56, 128, 128, head_fire);
   }
   if (!(mp3->isRunning()))
   {
