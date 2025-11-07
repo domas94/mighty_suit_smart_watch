@@ -7,7 +7,7 @@
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
-#include "fire.h"
+#include "fire_img.h"
 #include "fire_alarm.h"
 #include "config.h"
 
@@ -32,13 +32,14 @@ uint32_t interval = 0;
 int16_t x, y;
 bool irq = false;
 uint8_t test_brightness = 0;
+uint16_t vibration_time = 0;
 bool init_done = false;
 
 byte current_layout;
 byte new_layout;
 
 byte max_pages = 8;
-byte current_page = 0;
+byte current_page = 1;
 
 BLECharacteristic *read_characteristic;
 
@@ -167,7 +168,7 @@ class PageSetup
 {
 private:
   int _layout_type;
-  byte _max_value_num;
+  byte _max_value_cnt;
   byte _max_digit_num[8];
 
   // what if value not printed / vidjeti s Kresom?
@@ -179,7 +180,7 @@ public:
   PageSetup()
   {
     _layout_type = CRITICAL_INFO_LAYOUT;
-    _max_value_num = 8;
+    _max_value_cnt = 8;
   }
 
   void setLayoutType(int new_layout)
@@ -192,11 +193,11 @@ public:
     return _layout_type;
   }
 
-  void setMaxPageNum(int new_max_value_num)
+  void setMaxPageValCnt(int new_max_value_cnt)
   {
-    if (new_max_value_num > 1 && new_max_value_num < 8)
+    if (new_max_value_cnt > 1 && new_max_value_cnt < 8)
     {
-      _max_value_num = new_max_value_num;
+      _max_value_cnt = new_max_value_cnt;
     }
   }
 
@@ -208,9 +209,9 @@ public:
     }
   }
 
-  byte getMaxPageNum()
+  byte getPageValueCnt()
   {
-    return _max_value_num;
+    return _max_value_cnt;
   }
 };
 PageSetup pages[8];
@@ -321,19 +322,19 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array_size = 4;
 
         // check if the desired watch page number is out of limits
-        if (write_value[2] > 0 && write_value[2] <= 7)
+        if (write_value[2] > 0 && write_value[2] < 9)
         {
-          max_pages = write_value[2] - 1;
+          max_pages = write_value[2];
           Serial.println("Max page number set to");
           Serial.println(max_pages + 1);
         }
         // Number of pages too low
-        if (write_value[2] < 0)
+        if (write_value[2] < 1)
         {
           response_array[2] = 0x0C;
         }
         // Number of pages too high
-        if (write_value[2] > 7)
+        if (write_value[2] > 8)
         {
           response_array[2] = 0x0D;
         }
@@ -348,14 +349,12 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[3] = 0x00;
         response_array_size = 4;
         // check if page exists
-        if (write_value[2] >= 0 && write_value[2] <= max_pages)
+        if (write_value[2] > 0 && write_value[2] <= max_pages)
         {
           // if correct number of values
-          if (write_value[3] > 1 && write_value[3] < 8)
+          if (write_value[3] > 1 && write_value[3] < 9)
           {
-            Serial.println("Max page num set to:");
-            Serial.println(write_value[3]);
-            pages[write_value[2]].setMaxPageNum(write_value[3]);
+            pages[write_value[2]].setMaxPageValCnt(write_value[3]);
           }
           // number of values too low
           if (write_value[3] < 1)
@@ -369,7 +368,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
           }
         }
         // page doesn't exist
-        if (write_value[2] < 0 || write_value[2] > max_pages)
+        if (write_value[2] < 1 || write_value[2] > max_pages)
         {
           response_array[2] = 0x05;
         }
@@ -384,13 +383,12 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[3] = 0x00;
         response_array_size = 4;
         // check if page exists
-        if (write_value[2] >= 0 && write_value[2] <= max_pages)
+        if (write_value[2] > 0 && write_value[2] <= max_pages)
         {
           // check if layout exists
           if (write_value[3] == CRITICAL_INFO_LAYOUT || write_value[3] == NON_CRITICAL_INFO_LAYOUT)
           {
             Serial.println("Page layout set to:");
-            Serial.println(write_value[3]);
             pages[write_value[2]].setLayoutType(write_value[3]);
           }
 
@@ -417,17 +415,14 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[3] = 0x00;
         response_array_size = 4;
         // check if page exists
-        if (write_value[2] >= 0 && write_value[2] <= max_pages)
+        if (write_value[2] > 0 && write_value[2] <= max_pages)
         {
           // check if value exists
-          if (write_value[3] >= 0 && write_value[3] <= pages[write_value[2]].getMaxPageNum())
+          if (write_value[3] > 0 && write_value[3] <= pages[write_value[2]].getPageValueCnt())
           {
-            Serial.println(write_value[4]);
             // check digit number
             if (write_value[4] > 0 && write_value[4] < 4)
             {
-              Serial.print("Set digits for a page");
-              Serial.println(write_value[4]);
               pages[write_value[2]]
                   .values[write_value[3]]
                   .setValueDigits(write_value[4]);
@@ -469,14 +464,12 @@ class MyCallbacks : public BLECharacteristicCallbacks
         if (write_value[2] >= 0 && write_value[2] <= max_pages)
         {
           // check if value exists
-          if (write_value[3] >= 0 && write_value[3] < pages[write_value[2]].getMaxPageNum())
+          if (write_value[3] > 0 && write_value[3] <= pages[write_value[2]].getPageValueCnt())
           {
             value_for_page += write_value[4] << 0;
             value_for_page += write_value[5] << 8;
             value_for_page += write_value[6] << 16;
             value_for_page += write_value[7] << 24;
-            Serial.print("Value_for_page");
-            Serial.println(value_for_page);
             pages[write_value[2]]
                 .values[write_value[3]]
                 .setValue(value_for_page);
@@ -503,7 +496,6 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[3] = 0x00;
         response_array_size = 4;
         init_done = true;
-        Serial.println("Init done");
       }
       Serial.println();
       read_characteristic->setValue(response_array, response_array_size);
@@ -534,7 +526,7 @@ void set_layout_0(void)
   tft->setTextSize(2);
   tft->drawString(String(current_page), 210, 130);
 
-  if (pages[current_page].getMaxPageNum() > 0)
+  if (pages[current_page].getPageValueCnt() > 0)
   {
     value_w = tft->textWidth(String(pages[current_page].values[0].getValue()).substring(0, pages[current_page].values[0].getValueDigits()));
     tft->drawString(String(pages[current_page].values[0].getValue()).substring(0, pages[current_page].values[0].getValueDigits()), 0, 10);
@@ -543,7 +535,7 @@ void set_layout_0(void)
     tft->drawString(pages[current_page].values[0].getDesc(), 0 + value_w + 50, 20);
   }
 
-  if (pages[current_page].getMaxPageNum() > 1)
+  if (pages[current_page].getPageValueCnt() > 1)
   {
     tft->setTextSize(3);
     value_w = tft->textWidth(String(pages[current_page].values[1].getValue()).substring(0, pages[current_page].values[1].getValueDigits()));
@@ -553,7 +545,7 @@ void set_layout_0(void)
     tft->drawString(pages[current_page].values[1].getDesc(), 85, 130);
   }
 
-  if (pages[current_page].getMaxPageNum() > 2)
+  if (pages[current_page].getPageValueCnt() > 2)
   {
     value_w = tft->textWidth(String(pages[current_page].values[2].getValue()).substring(0, pages[current_page].values[2].getValueDigits()));
     tft->drawString(String(pages[current_page].values[2].getValue()).substring(0, pages[current_page].values[2].getValueDigits()), 90, 200);
@@ -562,7 +554,7 @@ void set_layout_0(void)
     tft->drawString(pages[current_page].values[2].getDesc(), 90, 220);
   }
 
-  if (pages[current_page].getMaxPageNum() > 3)
+  if (pages[current_page].getPageValueCnt() > 3)
   {
     value_w = tft->textWidth(String(pages[current_page].values[3].getValue()).substring(0, pages[current_page].values[3].getValueDigits()));
     tft->drawString(String(pages[current_page].values[3].getValue()).substring(0, pages[current_page].values[3].getValueDigits()), 170, 200);
@@ -572,7 +564,7 @@ void set_layout_0(void)
     tft->drawString(pages[current_page].values[3].getDesc(), 170, 220);
   }
 
-  if (pages[current_page].getMaxPageNum() > 4)
+  if (pages[current_page].getPageValueCnt() > 4)
   {
     // value_w = tft->textWidth(String(pages[current_page].values[4].getValue()).substring(0, pages[current_page].values[3].getValueDigits()));
     // tft->drawString(String(pages[current_page].values[4].getValue()).substring(0, pages[current_page].values[3].getValueDigits()), 0, 200);
@@ -598,14 +590,14 @@ void set_layout_1(void)
 
   tft->setTextSize(2);
   tft->drawString(String(current_page), 210, 130);
-  if (pages[current_page].getMaxPageNum() > 0)
+  if (pages[current_page].getPageValueCnt() > 0)
   {
     tft->drawString(String(pages[current_page].values[0].getValue()).substring(0, pages[current_page].values[0].getValueDigits()), 123, 10);
     value_w = tft->textWidth(String(pages[current_page].values[0].getValue()).substring(0, pages[current_page].values[0].getValueDigits()));
     tft->drawString(pages[current_page].values[0].getUnit(), 123 + value_w, 10);
     tft->drawString(pages[current_page].values[0].getDesc(), 0, 10);
   }
-  if (pages[current_page].getMaxPageNum() > 1)
+  if (pages[current_page].getPageValueCnt() > 1)
   {
     tft->setTextSize(2);
     tft->drawString(String(pages[current_page].values[1].getValue()).substring(0, pages[current_page].values[1].getValueDigits()), 123, 50);
@@ -613,7 +605,7 @@ void set_layout_1(void)
     tft->drawString(pages[current_page].values[1].getUnit(), 123 + value_w, 50);
     tft->drawString(pages[current_page].values[1].getDesc(), 0, 50);
   }
-  if (pages[current_page].getMaxPageNum() > 2)
+  if (pages[current_page].getPageValueCnt() > 2)
   {
     tft->setTextSize(2);
     tft->drawString(String(pages[current_page].values[2].getValue()).substring(0, pages[current_page].values[2].getValueDigits()), 123, 90);
@@ -621,7 +613,7 @@ void set_layout_1(void)
     tft->drawString(pages[current_page].values[2].getUnit(), 123 + value_w, 90);
     tft->drawString(pages[current_page].values[2].getDesc(), 0, 90);
   }
-  if (pages[current_page].getMaxPageNum() > 3)
+  if (pages[current_page].getPageValueCnt() > 3)
   {
     tft->setTextSize(3);
     value_w = tft->textWidth(String(pages[current_page].values[3].getValue()).substring(0, pages[current_page].values[3].getValueDigits()));
@@ -769,7 +761,7 @@ void setup()
   // pages[0].values[3].setDesc("Right");
   // pages[0].values[3].setUnit("C");
   // pages[0].values[4].setValue(0);
-  pages[0].values[4].setDesc("Boots");
+  // pages[0].values[4].setDesc("Boots");
   // pages[0].values[4].setUnit("");
   // pages[1].values[0].setValue(31);
   // pages[1].values[0].setDesc("Temp Air");
@@ -819,20 +811,20 @@ void setup()
   drawSTATUS(false);
   updateBatIcon(LV_ICON_CALCULATION);
 
-    // AUDIO
-    ttgo->enableLDO3();
+  // AUDIO
+  ttgo->enableLDO3();
 
-    file = new AudioFileSourcePROGMEM(fire_alarm, sizeof(fire_alarm));
-    id3 = new AudioFileSourceID3(file);
+  file = new AudioFileSourcePROGMEM(fire_alarm, sizeof(fire_alarm));
+  id3 = new AudioFileSourceID3(file);
 
-  #if defined(STANDARD_BACKPLANE)
-    out = new AudioOutputI2S(0, 1);
-  #elif defined(EXTERNAL_DAC_BACKPLANE)
-    out = new AudioOutputI2S();
-    // External DAC decoding
-    out->SetPinout(TWATCH_DAC_IIS_BCK, TWATCH_DAC_IIS_WS, TWATCH_DAC_IIS_DOUT);
-  #endif
-    mp3 = new AudioGeneratorMP3();
+#if defined(STANDARD_BACKPLANE)
+  out = new AudioOutputI2S(0, 1);
+#elif defined(EXTERNAL_DAC_BACKPLANE)
+  out = new AudioOutputI2S();
+  // External DAC decoding
+  out->SetPinout(TWATCH_DAC_IIS_BCK, TWATCH_DAC_IIS_WS, TWATCH_DAC_IIS_DOUT);
+#endif
+  mp3 = new AudioGeneratorMP3();
 }
 
 void loop()
@@ -885,14 +877,13 @@ void loop()
       {
         set_layout_1();
       }
-    }
 
-    if (vibration)
-    {
-      ttgo->motor->onec();
+      // if (vibration)
+      // {
+      //   ttgo->motor->onec();
+      // }
     }
   }
-
   if (digitalRead(TP_INT) == LOW)
   {
     if (ttgo->getTouch(x, y))
