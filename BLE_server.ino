@@ -8,25 +8,25 @@
 #include <BLEUtils.h>
 #include <BLEServer.h>
 #include "fire.h"
-// #include "pika.h"
+#include "fire_alarm.h"
 #include "config.h"
 
-// #include "AudioFileSourcePROGMEM.h"
-// #include "AudioFileSourceID3.h"
-// #include "AudioGeneratorMP3.h"
-// #include "AudioOutputI2S.h"
+#include "AudioFileSourcePROGMEM.h"
+#include "AudioFileSourceID3.h"
+#include "AudioGeneratorMP3.h"
+#include "AudioOutputI2S.h"
 
-// AudioGeneratorMP3 *mp3;
-// AudioFileSourcePROGMEM *file;
-// AudioOutputI2S *out;
-// AudioFileSourceID3 *id3;
+AudioGeneratorMP3 *mp3;
+AudioFileSourcePROGMEM *file;
+AudioOutputI2S *out;
+AudioFileSourceID3 *id3;
 
 TTGOClass *ttgo;
 TFT_eSPI *tft;
 PCF8563_Class *rtc;
 
 bool deviceConnected = false;
-bool fire_alarm = false;
+bool fire_alarm_flag = false;
 bool vibration = false;
 uint32_t interval = 0;
 int16_t x, y;
@@ -643,11 +643,11 @@ void set_alarm_layout(void)
     tft->setSwapBytes(true);
     tft->pushImage(56, 56, 128, 128, fire);
   }
-  // if (!(mp3->isRunning()))
-  // {
-  //   Serial.println("STARTING MP3");
-  //   mp3->begin(id3, out);
-  // }
+  if (!(mp3->isRunning()))
+  {
+    Serial.println("STARTING MP3");
+    mp3->begin(id3, out);
+  }
 
   updateBatIcon(LV_ICON_CALCULATION);
 
@@ -656,7 +656,6 @@ void set_alarm_layout(void)
   if (test_brightness > 240)
     test_brightness = 0;
   ttgo->motor->onec();
-  delay(200);
 }
 
 // set time layout
@@ -820,34 +819,34 @@ void setup()
   drawSTATUS(false);
   updateBatIcon(LV_ICON_CALCULATION);
 
-  //   // AUDIO
-  //   ttgo->enableLDO3();
+    // AUDIO
+    ttgo->enableLDO3();
 
-  //   file = new AudioFileSourcePROGMEM(pika, sizeof(pika));
-  //   id3 = new AudioFileSourceID3(file);
+    file = new AudioFileSourcePROGMEM(fire_alarm, sizeof(fire_alarm));
+    id3 = new AudioFileSourceID3(file);
 
-  // #if defined(STANDARD_BACKPLANE)
-  //   out = new AudioOutputI2S(0, 1);
-  // #elif defined(EXTERNAL_DAC_BACKPLANE)
-  //   out = new AudioOutputI2S();
-  //   // External DAC decoding
-  //   out->SetPinout(TWATCH_DAC_IIS_BCK, TWATCH_DAC_IIS_WS, TWATCH_DAC_IIS_DOUT);
-  // #endif
-  //   mp3 = new AudioGeneratorMP3();
+  #if defined(STANDARD_BACKPLANE)
+    out = new AudioOutputI2S(0, 1);
+  #elif defined(EXTERNAL_DAC_BACKPLANE)
+    out = new AudioOutputI2S();
+    // External DAC decoding
+    out->SetPinout(TWATCH_DAC_IIS_BCK, TWATCH_DAC_IIS_WS, TWATCH_DAC_IIS_DOUT);
+  #endif
+    mp3 = new AudioGeneratorMP3();
 }
 
 void loop()
 {
-  // if (mp3->isRunning())
-  // {
-  //   if (!mp3->loop())
-  //   {
-  //     mp3->stop();
-  //     file = new AudioFileSourcePROGMEM(pika, sizeof(pika));
-  //     id3 = new AudioFileSourceID3(file);
-  //     mp3 = new AudioGeneratorMP3();
-  //   }
-  // }
+  if (mp3->isRunning())
+  {
+    if (!mp3->loop())
+    {
+      mp3->stop();
+      file = new AudioFileSourcePROGMEM(fire_alarm, sizeof(fire_alarm));
+      id3 = new AudioFileSourceID3(file);
+      mp3 = new AudioGeneratorMP3();
+    }
+  }
   if (millis() - interval > 1000)
   {
 
@@ -873,7 +872,7 @@ void loop()
     interval = millis();
     if (init_done)
     {
-      if (fire_alarm)
+      if (fire_alarm_flag)
       {
         set_time_layout();
         set_alarm_layout();
@@ -903,7 +902,7 @@ void loop()
       tft->fillScreen(TFT_BLACK);
       if (current_page > max_pages)
       {
-        fire_alarm = true;
+        fire_alarm_flag = true;
         current_page = 0;
       }
     }
