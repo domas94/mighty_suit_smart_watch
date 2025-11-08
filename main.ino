@@ -35,6 +35,9 @@
 #include <BLEUtils.h>
 #include <BLEServer.h>
 #include "head_fire.h"
+#include "boots.h"
+#include "gas.h"
+#include "heart.h"
 #include "fire_alarm.h"
 #include "config.h"
 
@@ -42,35 +45,6 @@
 #include "AudioFileSourceID3.h"
 #include "AudioGeneratorMP3.h"
 #include "AudioOutputI2S.h"
-
-AudioGeneratorMP3 *mp3;
-AudioFileSourcePROGMEM *file;
-AudioOutputI2S *out;
-AudioFileSourceID3 *id3;
-
-TTGOClass *ttgo;
-TFT_eSPI *tft;
-PCF8563_Class *rtc;
-
-bool deviceConnected = false;
-bool fire_alarm_flag = false;
-bool vibration = false;
-uint32_t interval = 0;
-int16_t x, y;
-bool irq = false;
-uint16_t vibration_time = 0;
-bool init_done = true;
-bool refresh_screen = false;
-uint32_t vibration_interval = millis();
-
-byte new_layout;
-
-byte max_pages = 8;
-byte current_page = 0;
-
-BLECharacteristic *read_characteristic;
-
-uint8_t response_array[131];
 
 #define SERVICE_UUID "9ff3f90c-9a35-446e-9fd9-68a5a1d792ae"
 #define WRITE_UUID "862c9860-0d89-4caf-8902-dc615e1181e9"
@@ -82,6 +56,36 @@ uint8_t response_array[131];
 #define ALARM_LAYOUT 8
 #define TIME_LAYOUT 9
 #define MAX_STR_LEN 12
+#define NO_ALARM 0
+#define BOOT_ON_FIRE 1
+#define FIRE_OVER_HEAD 2
+#define HEART_RATE 3
+#define GAS_CONCENTRATION 4
+
+AudioGeneratorMP3 *mp3;
+AudioFileSourcePROGMEM *file;
+AudioOutputI2S *out;
+AudioFileSourceID3 *id3;
+
+TTGOClass *ttgo;
+TFT_eSPI *tft;
+PCF8563_Class *rtc;
+
+bool init_done = true;
+bool deviceConnected = false;
+uint8_t alarm_icon = NO_ALARM;
+bool alarm_flag = false;
+bool vibration = false;
+int16_t x, y;
+bool irq = false;
+bool refresh_screen = false;
+uint32_t interval = 0;
+uint32_t vibration_interval = 0;
+uint16_t vibration_time = 0;
+byte max_pages = 8;
+byte current_page = 0;
+BLECharacteristic *read_characteristic;
+uint8_t response_array[131];
 
 typedef enum
 {
@@ -107,6 +111,7 @@ void updateBatIcon(lv_icon_battery_t icon)
   int level = ttgo->power->getBattPercentage();
   w = level / 10 * 2 + 10;
   // clear previous value
+   tft->fillRoundRect(x - 40, y, w + 40, h + 10, 3, TFT_BLACK);
   tft->setTextColor(TFT_YELLOW, TFT_BLACK);
 
   if (icon == LV_ICON_CALCULATION)
@@ -229,7 +234,6 @@ private:
   byte _max_value_cnt;
   byte _max_digit_num[8];
 
-  // what if value not printed / vidjeti s Kresom?
 
 public:
   ValueAttrs values[8];
@@ -332,11 +336,13 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[27] = 0x00;
         response_array[28] = 0x1F;
         response_array[29] = 0x00;
-        response_array[30] = 0x21;
+        response_array[30] = 0x20;
         response_array[31] = 0x00;
-        response_array[32] = 0x23;
+        response_array[32] = 0x21;
         response_array[33] = 0x00;
-        response_array_size = 34;
+        response_array[34] = 0x23;
+        response_array[35] = 0x00;
+        response_array_size = 36;
       }
       int level;
       // Battery level in %
@@ -664,7 +670,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
       // set vibration time
       if (write_value[COMMAND_KEY] == 0x1F)
       {
-        response_array[0] = 0x1E;
+        response_array[0] = 0x1F;
         response_array[1] = 0x00;
         // accepted
         response_array[2] = 0x00;
@@ -677,12 +683,42 @@ class MyCallbacks : public BLECharacteristicCallbacks
         if (temp >= 0 && temp <= 10000)
         {
           vibration_time = temp;
-          vibration_interval = milis();
+          vibration_interval = millis();
         }
         else
         {
           // vibration period too long
           response_array[2] = 0x15;
+        }
+      }
+
+      // set alarm icon
+      if (write_value[COMMAND_KEY] == 0x20)
+      {
+        response_array[0] = 0x20;
+        response_array[1] = 0x00;
+        // accepted
+        response_array[2] = 0x00;
+        response_array[3] = 0x00;
+        response_array_size = 4;
+
+        // check if correct icon
+        if (write_value[2] > 0 && write_value[2] < 5)
+        {
+          alarm_icon = write_value[2];
+          alarm_flag = true;
+          refresh_screen = true;
+        }
+        else if (write_value[2] == 0)
+        {
+          alarm_icon = write_value[2];
+          alarm_flag = false;
+          refresh_screen = true;
+        }
+        else
+        {
+          // rejected, value doesn't exist
+          response_array[2] = 0x11;
         }
       }
 
@@ -880,8 +916,14 @@ void set_alarm_layout(void)
   if (refresh_screen)
   {
     tft->fillScreen(TFT_BLACK);
-    tft->setSwapBytes(true);
-    tft->pushImage(56, 56, 128, 128, head_fire);
+    if (alarm_icon == BOOT_ON_FIRE)
+      tft->pushImage(56, 56, 128, 128, boots);
+    else if (alarm_icon == FIRE_OVER_HEAD)
+      tft->pushImage(56, 56, 128, 128, head_fire);
+    else if (alarm_icon == HEART_RATE)
+      tft->pushImage(56, 56, 128, 128, heart);
+    else if (alarm_icon == GAS_CONCENTRATION)
+      tft->pushImage(56, 56, 128, 128, gas);
     refresh_screen = false;
   }
   tft->setTextSize(1);
@@ -1040,6 +1082,7 @@ void setup()
   setupBLE();
   // set font type
   tft->setTextFont(2);
+  tft->setSwapBytes(true);
 
   // Draw initial connection status
   drawSTATUS(false);
@@ -1098,7 +1141,7 @@ void loop()
     interval = millis();
     if (init_done)
     {
-      if (fire_alarm_flag)
+      if (alarm_flag)
       {
         set_alarm_layout();
       }
@@ -1125,12 +1168,11 @@ void loop()
   {
     if (ttgo->getTouch(x, y))
     {
-      delay(100);
+      delay(200);
       current_page++;
       refresh_screen = true;
       if (current_page > max_pages - 1)
       {
-        fire_alarm_flag = true;
         current_page = 0;
       }
     }
@@ -1143,6 +1185,7 @@ void loop()
     ttgo->power->readIRQ();
     if (ttgo->power->isPEKShortPressIRQ())
     {
+      alarm_flag = false;
       // Clean power chip irq status
       ttgo->power->clearIRQ();
 
