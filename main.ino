@@ -70,6 +70,9 @@ AudioFileSourceID3 *id3;
 TTGOClass *ttgo;
 TFT_eSPI *tft;
 PCF8563_Class *rtc;
+BMA *sensor;
+uint8_t prevRotation;
+uint8_t rotation;
 
 bool init_done = false;
 bool deviceConnected = false;
@@ -77,15 +80,24 @@ uint8_t alarm_icon = NO_ALARM;
 bool alarm_flag = false;
 bool vibration = false;
 int16_t x, y;
-bool irq = false;
+bool irq_1 = false;
+bool irq_2 = false;
+bool rlst;
 bool refresh_screen = false;
 uint32_t interval = 0;
 uint32_t vibration_interval = 0;
+uint32_t activity_interval = 0;
+bool activity_interval_start = false;
+bool activity = false;
 uint16_t vibration_time = 0;
 byte max_pages = 8;
 byte current_page = 0;
 BLECharacteristic *read_characteristic;
 uint8_t response_array[131];
+uint32_t clickCount = 0;
+uint32_t stepCount = 0;
+int16_t xoffset = 30;
+uint8_t brightness_level = 255;
 
 typedef enum
 {
@@ -111,7 +123,7 @@ void updateBatIcon(lv_icon_battery_t icon)
   int level = ttgo->power->getBattPercentage();
   w = level / 10 * 2 + 10;
   // clear previous value
-   tft->fillRoundRect(x - 40, y, w + 40, h + 10, 3, TFT_BLACK);
+  tft->fillRoundRect(x - 40, y, w + 40, h + 10, 3, TFT_BLACK);
   tft->setTextColor(TFT_YELLOW, TFT_BLACK);
 
   if (icon == LV_ICON_CALCULATION)
@@ -233,7 +245,6 @@ private:
   int _layout_type;
   byte _max_value_cnt;
   byte _max_digit_num[8];
-
 
 public:
   ValueAttrs values[8];
@@ -658,7 +669,11 @@ class MyCallbacks : public BLECharacteristicCallbacks
         // check if correct brightness
         if (write_value[2] >= 0 && write_value[2] <= 255)
         {
-          ttgo->setBrightness(write_value[2]);
+          if (brightness_level != write_value[2])
+          {
+            brightness_level = write_value[2];
+            ttgo->setBrightness(brightness_level);
+          }
         }
         else
         {
@@ -1068,7 +1083,7 @@ void setup()
 
   pinMode(AXP202_INT, INPUT_PULLUP);
   attachInterrupt(AXP202_INT, []
-                  { irq = true; }, FALLING);
+                  { irq_1 = true; }, FALLING);
   ttgo->power->adc1Enable(AXP202_BATT_VOL_ADC1 | AXP202_BATT_CUR_ADC1 | AXP202_VBUS_VOL_ADC1 | AXP202_VBUS_CUR_ADC1, AXP202_ON);
   ttgo->power->enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_PEK_SHORTPRESS_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_CHARGING_FINISHED_IRQ, AXP202_ON);
   ttgo->power->clearIRQ();
@@ -1102,6 +1117,83 @@ void setup()
   out->SetPinout(TWATCH_DAC_IIS_BCK, TWATCH_DAC_IIS_WS, TWATCH_DAC_IIS_DOUT);
 #endif
   mp3 = new AudioGeneratorMP3();
+
+  sensor = ttgo->bma;
+
+  // Accel parameter structure
+  Acfg cfg;
+  /*!
+      Output data rate in Hz, Optional parameters:
+          - BMA4_OUTPUT_DATA_RATE_0_78HZ
+          - BMA4_OUTPUT_DATA_RATE_1_56HZ
+          - BMA4_OUTPUT_DATA_RATE_3_12HZ
+          - BMA4_OUTPUT_DATA_RATE_6_25HZ
+          - BMA4_OUTPUT_DATA_RATE_12_5HZ
+          - BMA4_OUTPUT_DATA_RATE_25HZ
+          - BMA4_OUTPUT_DATA_RATE_50HZ
+          - BMA4_OUTPUT_DATA_RATE_100HZ
+          - BMA4_OUTPUT_DATA_RATE_200HZ
+          - BMA4_OUTPUT_DATA_RATE_400HZ
+          - BMA4_OUTPUT_DATA_RATE_800HZ
+          - BMA4_OUTPUT_DATA_RATE_1600HZ
+  */
+  cfg.odr = BMA4_OUTPUT_DATA_RATE_100HZ;
+  /*!
+      G-range, Optional parameters:
+          - BMA4_ACCEL_RANGE_2G
+          - BMA4_ACCEL_RANGE_4G
+          - BMA4_ACCEL_RANGE_8G
+          - BMA4_ACCEL_RANGE_16G
+  */
+  cfg.range = BMA4_ACCEL_RANGE_2G;
+  /*!
+      Bandwidth parameter, determines filter configuration, Optional parameters:
+          - BMA4_ACCEL_OSR4_AVG1
+          - BMA4_ACCEL_OSR2_AVG2
+          - BMA4_ACCEL_NORMAL_AVG4
+          - BMA4_ACCEL_CIC_AVG8
+          - BMA4_ACCEL_RES_AVG16
+          - BMA4_ACCEL_RES_AVG32
+          - BMA4_ACCEL_RES_AVG64
+          - BMA4_ACCEL_RES_AVG128
+  */
+  cfg.bandwidth = BMA4_ACCEL_NORMAL_AVG4;
+
+  /*! Filter performance mode , Optional parameters:
+      - BMA4_CIC_AVG_MODE
+      - BMA4_CONTINUOUS_MODE
+  */
+  cfg.perf_mode = BMA4_CONTINUOUS_MODE;
+
+  // Configure the BMA423 accelerometer
+  sensor->accelConfig(cfg);
+
+  // Enable BMA423 accelerometer
+  sensor->enableAccel();
+
+  pinMode(BMA423_INT1, INPUT);
+  attachInterrupt(BMA423_INT1, []
+                  {
+        // Set interrupt to set irq value to 1
+        irq_2 = 1; }, RISING); // It must be a rising edge
+
+  // Enable BMA423 isStepCounter feature
+  sensor->enableFeature(BMA423_STEP_CNTR, true);
+  // Enable BMA423 isTilt feature
+  sensor->enableFeature(BMA423_TILT, true);
+
+  // Enable BMA423 isDoubleClick feature
+  sensor->enableFeature(BMA423_WAKEUP, true);
+  // Reset steps
+  sensor->resetStepCounter();
+
+  // Turn on feature interrupt
+  sensor->enableStepCountInterrupt();
+  sensor->enableTiltInterrupt();
+  // It corresponds to isDoubleClick interrupt
+  sensor->enableWakeupInterrupt();
+
+  ttgo->setBrightness(brightness_level);
 }
 
 void loop()
@@ -1177,11 +1269,100 @@ void loop()
       }
     }
   }
-
-  // DISPLAY SLEEP
-  if (irq)
+  if (irq_2)
   {
-    irq = false;
+    irq_2 = false;
+    do
+    {
+      // Read the BMA423 interrupt status,
+      // need to wait for it to return to true before continuing
+      rlst = sensor->readInterrupt();
+
+    } while (!rlst);
+    // Check if it is a step interrupt
+    // if (sensor->isStepCounter())
+    // {
+    //   // Get step data from register
+    //   stepCount = sensor->getCounter();
+    //   tft->setTextColor(random(0xFFFF), TFT_BLACK);
+    //   tft->setCursor(xoffset, 118);
+    //   tft->print("StepCount:");
+    //   tft->print(stepCount);
+    // }
+    // The wrist must be worn correctly, otherwise the data will not come out
+    if (sensor->isTilt())
+    {
+      tft->setTextColor(random(0xFFFF), TFT_BLACK);
+      tft->setCursor(xoffset, 160);
+      activity = true;
+    }
+    // Double-click interrupt
+    // if (sensor->isDoubleClick())
+    // {
+    //   Serial.println("isDoubleClick");
+    //   tft->setTextColor(random(0xFFFF), TFT_BLACK);
+    //   tft->setCursor(xoffset, 202);
+    //   tft->print("isDoubleClick:");
+    //   tft->print(++clickCount);
+    // }
+  }
+
+  // rotation = sensor->direction();
+  // if (prevRotation != rotation)
+  // {
+  //   prevRotation = rotation;
+  //   Serial.printf("tft:%u sens:%u ", tft->getRotation(), rotation);
+  //   switch (rotation)
+  //   {
+  //   case DIRECTION_DISP_DOWN:
+  //     // No use
+  //     break;
+  //   case DIRECTION_DISP_UP:
+  //     // No use
+  //     break;
+  //   case DIRECTION_BOTTOM_EDGE:
+  //     Serial.printf(" set %u\n", WATCH_SCREEN_BOTTOM_EDGE);
+  //     tft->setRotation(WATCH_SCREEN_BOTTOM_EDGE);
+  //     break;
+  //   case DIRECTION_TOP_EDGE:
+  //     Serial.printf(" set %u\n", WATCH_SCREEN_TOP_EDGE);
+  //     tft->setRotation(WATCH_SCREEN_TOP_EDGE);
+  //     break;
+  //   case DIRECTION_RIGHT_EDGE:
+  //     Serial.printf(" set %u\n", WATCH_SCREEN_RIGHT_EDGE);
+  //     tft->setRotation(WATCH_SCREEN_RIGHT_EDGE);
+  //     break;
+  //   case DIRECTION_LEFT_EDGE:
+  //     Serial.printf(" set %u\n", WATCH_SCREEN_LEFT_EDGE);
+  //     tft->setRotation(WATCH_SCREEN_LEFT_EDGE);
+  //     break;
+  //   default:
+  //     break;
+  //   }
+  //   tft->fillScreen(TFT_BLACK);
+  //   tft->drawCentreString("T-Watch", 120, 120, 4);
+  // }
+  if (activity)
+  {
+    activity = false;
+    activity_interval = millis();
+    ttgo->setBrightness(brightness_level);
+    activity_interval_start = true;
+  }
+
+  if (millis() - activity_interval > 5000)
+  {
+    ttgo->setBrightness(10);
+    if (activity_interval_start == true)
+    {
+      ttgo->setBrightness(10);
+    }
+    activity_interval_start = false;
+  }
+  // DISPLAY SLEEP
+  if (irq_1)
+  {
+    irq_1 = false;
     ttgo->power->readIRQ();
     if (ttgo->power->isPEKShortPressIRQ())
     {
