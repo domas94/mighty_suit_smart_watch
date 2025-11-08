@@ -71,7 +71,7 @@ TTGOClass *ttgo;
 TFT_eSPI *tft;
 PCF8563_Class *rtc;
 
-bool init_done = true;
+bool init_done = false;
 bool deviceConnected = false;
 uint8_t alarm_icon = NO_ALARM;
 bool alarm_flag = false;
