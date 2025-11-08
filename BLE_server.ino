@@ -4,6 +4,33 @@
     updates by chegewara
 */
 
+// TFT_BLACK	0x0000	0	0	0	
+// TFT_NAVY	0x000F	0	0	128	
+// TFT_DARKGREEN	0x03E0	0	128	0	
+// TFT_DARKCYAN	0x03EF	0	128	128	
+// TFT_MAROON	0x7800	128	0	0	
+// TFT_PURPLE	0x780F	128	0	128	
+// TFT_OLIVE	0x7BE0	128	128	0	
+// TFT_LIGHTGREY	0xD69A	211	211	211	
+// TFT_DARKGREY	0x7BEF	128	128	128	
+// TFT_BLUE	0x001F	0	0	255	
+// TFT_GREEN	0x07E0	0	255	0	
+// TFT_CYAN	0x07FF	0	255	255	
+// TFT_RED	0xF800	255	0	0	
+// TFT_MAGENTA	0xF81F	255	0	255	
+// TFT_YELLOW	0xFFE0	255	255	0	
+// TFT_WHITE	0xFFFF	255	255	255	
+// TFT_ORANGE	0xFDA0	255	180	0	
+// TFT_GREENYELLOW	0xB7E0	180	255	0	
+// TFT_PINK	0xFE19	255	192	203	Lighter pink,
+// was 0xFC9F
+// TFT_BROWN	0x9A60	150	75	0	
+// TFT_GOLD	0xFEA0	255	215	0	
+// TFT_SILVER	0xC618	192	192	192	
+// TFT_SKYBLUE	0x867D	135	206	235	
+// TFT_VIOLET	0x915C	180	46	226	
+// TFT_TRANSPARENT	0x0120		
+
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
@@ -33,7 +60,7 @@ int16_t x, y;
 bool irq = false;
 uint8_t test_brightness = 0;
 uint16_t vibration_time = 0;
-bool init_done = false;
+bool init_done = true;
 bool refresh_screen = false;
 
 byte new_layout;
@@ -108,6 +135,7 @@ private:
   String _desc;
   String _unit;
   int _value_digits;
+  int _value_color;
 
 public:
   // Constructor (runs automatically when object is created)
@@ -117,6 +145,7 @@ public:
     _desc = "";
     _unit = "";
     _value_digits = 3;
+    _value_color = TFT_YELLOW;
   }
 
   void init(int value, String desc, String unit)
@@ -130,6 +159,17 @@ public:
   {
     _value = new_value;
     refresh_screen = true;
+  }
+
+  void setColor(int new_color)
+  {
+    _value_color = new_color;
+    refresh_screen = true;
+  }
+
+  int getColor()
+  {
+    return _value_color;
   }
 
   int getValue()
@@ -549,6 +589,59 @@ class MyCallbacks : public BLECharacteristicCallbacks
         }
       }
 
+      // set color for page N, value M
+      if (write_value[COMMAND_KEY] == 0x1D)
+      {
+        response_array[0] = 0x21;
+        response_array[1] = 0x00;
+        // accepted
+        response_array[2] = 0x00;
+        response_array[3] = 0x00;
+        response_array_size = 4;
+        // check if page exists
+        if (write_value[2] >= 0 && write_value[2] <= max_pages)
+        {
+          // check if value exists
+          if (write_value[3] > 0 && write_value[3] <= pages[write_value[2]].getPageValueCnt())
+          {
+            if (write_value[4] == 0)
+              if (write_value[5] == 255)
+                if (write_value[6] == 0)
+                {
+                  pages[write_value[2]]
+                      .values[write_value[3]]
+                      .setColor(TFT_GREEN);
+                }
+            if (write_value[4] == 255)
+              if (write_value[5] == 0)
+                if (write_value[6] == 0)
+                {
+                  pages[write_value[2]]
+                      .values[write_value[3]]
+                      .setColor(TFT_RED);
+                }
+            if (write_value[4] == 0)
+              if (write_value[5] == 0)
+                if (write_value[6] == 255)
+                {
+                  pages[write_value[2]]
+                      .values[write_value[3]]
+                      .setColor(TFT_BLUE);
+                }
+          }
+          else
+          {
+            // value doesn't exist error code
+            response_array[2] = 0x11;
+          }
+        }
+        else
+        {
+          // page doesn't exist error code
+          response_array[2] = 0x05;
+        }
+      }
+
       // set value for page N, value M
       if (write_value[COMMAND_KEY] == 0x21)
       {
@@ -626,6 +719,7 @@ void set_layout_0(void)
 
   if (pages[current_page].getPageValueCnt() > 0)
   {
+    tft->setTextColor(pages[current_page].values[0].getColor(), TFT_BLACK);
     value_w = tft->textWidth(String(pages[current_page].values[0].getValue()).substring(0, pages[current_page].values[0].getValueDigits()));
     tft->drawString(String(pages[current_page].values[0].getValue()).substring(0, pages[current_page].values[0].getValueDigits()), 0, 10);
     tft->drawString(pages[current_page].values[0].getUnit(), 0 + value_w, 10);
@@ -635,6 +729,7 @@ void set_layout_0(void)
 
   if (pages[current_page].getPageValueCnt() > 1)
   {
+    tft->setTextColor(pages[current_page].values[1].getColor(), TFT_BLACK);
     tft->setTextSize(3);
     value_w = tft->textWidth(String(pages[current_page].values[1].getValue()).substring(0, pages[current_page].values[1].getValueDigits()));
     tft->drawString(String(pages[current_page].values[1].getValue()).substring(0, pages[current_page].values[1].getValueDigits()), 85, 80);
@@ -645,6 +740,7 @@ void set_layout_0(void)
 
   if (pages[current_page].getPageValueCnt() > 2)
   {
+    tft->setTextColor(pages[current_page].values[2].getColor(), TFT_BLACK);
     value_w = tft->textWidth(String(pages[current_page].values[2].getValue()).substring(0, pages[current_page].values[2].getValueDigits()));
     tft->drawString(String(pages[current_page].values[2].getValue()).substring(0, pages[current_page].values[2].getValueDigits()), 90, 200);
     tft->drawString(pages[current_page].values[2].getUnit(), 90 + value_w, 200);
@@ -654,6 +750,7 @@ void set_layout_0(void)
 
   if (pages[current_page].getPageValueCnt() > 3)
   {
+    tft->setTextColor(pages[current_page].values[3].getColor(), TFT_BLACK);
     value_w = tft->textWidth(String(pages[current_page].values[3].getValue()).substring(0, pages[current_page].values[3].getValueDigits()));
     tft->drawString(String(pages[current_page].values[3].getValue()).substring(0, pages[current_page].values[3].getValueDigits()), 170, 200);
     tft->drawString(pages[current_page].values[3].getUnit(), 170 + value_w, 200);
@@ -667,11 +764,13 @@ void set_layout_0(void)
     // value_w = tft->textWidth(String(pages[current_page].values[4].getValue()).substring(0, pages[current_page].values[3].getValueDigits()));
     // tft->drawString(String(pages[current_page].values[4].getValue()).substring(0, pages[current_page].values[3].getValueDigits()), 0, 200);
     // tft->drawString(pages[current_page].values[4].getUnit(), 0 + value_w, 200);
+    tft->setTextColor(pages[current_page].values[4].getColor(), TFT_BLACK);
     tft->setTextSize(2);
     tft->drawString(pages[current_page].values[4].getDesc(), 0, 200);
   }
-  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 140, 200);
-  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 30, 200);
+  tft->setTextSize(1);
+  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 0, 150);
+  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 0, 130);
   drawSTATUS(deviceConnected);
 }
 
@@ -691,6 +790,7 @@ void set_layout_1(void)
   tft->drawString(String(current_page + 1), 210, 130);
   if (pages[current_page].getPageValueCnt() > 0)
   {
+    tft->setTextColor(pages[current_page].values[0].getColor(), TFT_BLACK);
     tft->drawString(String(pages[current_page].values[0].getValue()).substring(0, pages[current_page].values[0].getValueDigits()), 123, 10);
     value_w = tft->textWidth(String(pages[current_page].values[0].getValue()).substring(0, pages[current_page].values[0].getValueDigits()));
     tft->drawString(pages[current_page].values[0].getUnit(), 123 + value_w, 10);
@@ -698,6 +798,7 @@ void set_layout_1(void)
   }
   if (pages[current_page].getPageValueCnt() > 1)
   {
+    tft->setTextColor(pages[current_page].values[1].getColor(), TFT_BLACK);
     tft->setTextSize(2);
     tft->drawString(String(pages[current_page].values[1].getValue()).substring(0, pages[current_page].values[1].getValueDigits()), 123, 50);
     value_w = tft->textWidth(String(pages[current_page].values[1].getValue()).substring(0, pages[current_page].values[1].getValueDigits()));
@@ -706,6 +807,7 @@ void set_layout_1(void)
   }
   if (pages[current_page].getPageValueCnt() > 2)
   {
+    tft->setTextColor(pages[current_page].values[2].getColor(), TFT_BLACK);
     tft->setTextSize(2);
     tft->drawString(String(pages[current_page].values[2].getValue()).substring(0, pages[current_page].values[2].getValueDigits()), 123, 90);
     value_w = tft->textWidth(String(pages[current_page].values[2].getValue()).substring(0, pages[current_page].values[2].getValueDigits()));
@@ -714,6 +816,7 @@ void set_layout_1(void)
   }
   if (pages[current_page].getPageValueCnt() > 3)
   {
+    tft->setTextColor(pages[current_page].values[3].getColor(), TFT_BLACK);
     tft->setTextSize(3);
     value_w = tft->textWidth(String(pages[current_page].values[3].getValue()).substring(0, pages[current_page].values[3].getValueDigits()));
     tft->drawString(String(pages[current_page].values[3].getValue()).substring(0, pages[current_page].values[3].getValueDigits()), 80, 160);
@@ -721,8 +824,9 @@ void set_layout_1(void)
     tft->setTextSize(2);
     tft->drawString(pages[current_page].values[3].getDesc(), 80, 200);
   }
-  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 140, 200);
-  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 30, 200);
+  tft->setTextSize(1);
+  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 60, 140);
+  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 0, 140);
   drawSTATUS(deviceConnected);
 }
 
@@ -838,33 +942,34 @@ void setup()
   Serial.begin(115200);
   Serial.println("Start");
 
-  // pages[0].values[0].setValue(123);
-  // pages[0].values[0].setDesc("Gas level", 9);
-  // pages[0].values[0].setUnit("ppm", 3);
-  // pages[0].values[1].setValue(67);
-  // pages[0].values[1].setDesc("Infr sensor", 11);
-  // pages[0].values[1].setUnit("%", 1);
-  // pages[0].values[2].setValue(89);
-  // pages[0].values[2].setDesc("Left");
-  // pages[0].values[2].setUnit("C");
-  // pages[0].values[3].setValue(35);
-  // pages[0].values[3].setDesc("Right");
-  // pages[0].values[3].setUnit("C");
-  // pages[0].values[4].setValue(0);
-  // pages[0].values[4].setDesc("Boots");
-  // pages[0].values[4].setUnit("");
-  // pages[1].values[0].setValue(31);
-  // pages[1].values[0].setDesc("Temp Air");
-  // pages[1].values[0].setUnit("C");
-  // pages[1].values[1].setValue(45);
-  // pages[1].values[1].setDesc("Temp In");
-  // pages[1].values[1].setUnit("C");
-  // pages[1].values[2].setValue(132);
-  // pages[1].values[2].setDesc("Press");
-  // pages[1].values[2].setUnit("hPa");
-  // pages[1].values[3].setValue(67);
-  // pages[1].values[3].setDesc("Heart rate");
-  // pages[1].values[3].setUnit("BPM");
+  pages[0].values[0].setValue(123);
+  pages[0].values[0].setDesc("Gas level", 9);
+  pages[0].values[0].setUnit("ppm", 3);
+  pages[0].values[0].setColor(TFT_RED);
+  pages[0].values[1].setValue(67);
+  pages[0].values[1].setDesc("Infr sensor", 11);
+  pages[0].values[1].setUnit("%", 1);
+  pages[0].values[2].setValue(89);
+  pages[0].values[2].setDesc("Left",4);
+  pages[0].values[2].setUnit("C",1);
+  pages[0].values[3].setValue(35);
+  pages[0].values[3].setDesc("Right",5);
+  pages[0].values[3].setUnit("C",1);
+  pages[0].values[4].setValue(0);
+  pages[0].values[4].setDesc("Boots",5);
+  pages[0].values[4].setUnit("",0);
+  pages[1].values[0].setValue(31);
+  pages[1].values[0].setDesc("Temp Air",8);
+  pages[1].values[0].setUnit("C",1);
+  pages[1].values[1].setValue(45);
+  pages[1].values[1].setDesc("Temp In",7);
+  pages[1].values[1].setUnit("C",1);
+  pages[1].values[2].setValue(132);
+  pages[1].values[2].setDesc("Press",5);
+  pages[1].values[2].setUnit("hPa",3);
+  pages[1].values[3].setValue(67);
+  pages[1].values[3].setDesc("Heart rate",10);
+  pages[1].values[3].setUnit("BPM",3);
 
   pages[1].setLayoutType(NON_CRITICAL_INFO_LAYOUT);
 
