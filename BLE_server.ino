@@ -4,32 +4,32 @@
     updates by chegewara
 */
 
-// TFT_BLACK	0x0000	0	0	0	
-// TFT_NAVY	0x000F	0	0	128	
-// TFT_DARKGREEN	0x03E0	0	128	0	
-// TFT_DARKCYAN	0x03EF	0	128	128	
-// TFT_MAROON	0x7800	128	0	0	
-// TFT_PURPLE	0x780F	128	0	128	
-// TFT_OLIVE	0x7BE0	128	128	0	
-// TFT_LIGHTGREY	0xD69A	211	211	211	
-// TFT_DARKGREY	0x7BEF	128	128	128	
-// TFT_BLUE	0x001F	0	0	255	
-// TFT_GREEN	0x07E0	0	255	0	
-// TFT_CYAN	0x07FF	0	255	255	
-// TFT_RED	0xF800	255	0	0	
-// TFT_MAGENTA	0xF81F	255	0	255	
-// TFT_YELLOW	0xFFE0	255	255	0	
-// TFT_WHITE	0xFFFF	255	255	255	
-// TFT_ORANGE	0xFDA0	255	180	0	
-// TFT_GREENYELLOW	0xB7E0	180	255	0	
+// TFT_BLACK	0x0000	0	0	0
+// TFT_NAVY	0x000F	0	0	128
+// TFT_DARKGREEN	0x03E0	0	128	0
+// TFT_DARKCYAN	0x03EF	0	128	128
+// TFT_MAROON	0x7800	128	0	0
+// TFT_PURPLE	0x780F	128	0	128
+// TFT_OLIVE	0x7BE0	128	128	0
+// TFT_LIGHTGREY	0xD69A	211	211	211
+// TFT_DARKGREY	0x7BEF	128	128	128
+// TFT_BLUE	0x001F	0	0	255
+// TFT_GREEN	0x07E0	0	255	0
+// TFT_CYAN	0x07FF	0	255	255
+// TFT_RED	0xF800	255	0	0
+// TFT_MAGENTA	0xF81F	255	0	255
+// TFT_YELLOW	0xFFE0	255	255	0
+// TFT_WHITE	0xFFFF	255	255	255
+// TFT_ORANGE	0xFDA0	255	180	0
+// TFT_GREENYELLOW	0xB7E0	180	255	0
 // TFT_PINK	0xFE19	255	192	203	Lighter pink,
 // was 0xFC9F
-// TFT_BROWN	0x9A60	150	75	0	
-// TFT_GOLD	0xFEA0	255	215	0	
-// TFT_SILVER	0xC618	192	192	192	
-// TFT_SKYBLUE	0x867D	135	206	235	
-// TFT_VIOLET	0x915C	180	46	226	
-// TFT_TRANSPARENT	0x0120		
+// TFT_BROWN	0x9A60	150	75	0
+// TFT_GOLD	0xFEA0	255	215	0
+// TFT_SILVER	0xC618	192	192	192
+// TFT_SKYBLUE	0x867D	135	206	235
+// TFT_VIOLET	0x915C	180	46	226
+// TFT_TRANSPARENT	0x0120
 
 #include <BLEDevice.h>
 #include <BLEUtils.h>
@@ -58,7 +58,6 @@ bool vibration = false;
 uint32_t interval = 0;
 int16_t x, y;
 bool irq = false;
-uint8_t test_brightness = 0;
 uint16_t vibration_time = 0;
 bool init_done = true;
 bool refresh_screen = false;
@@ -325,17 +324,17 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[21] = 0x00;
         response_array[22] = 0x1C;
         response_array[23] = 0x00;
-        // response_array[22] = 0x1D;
-        // response_array[23] = 0x00;
-        // response_array[24] = 0x1E;
-        // response_array[25] = 0x00;
+        response_array[24] = 0x1D;
+        response_array[25] = 0x00;
+        response_array[26] = 0x1E;
+        response_array[27] = 0x00;
         // response_array[26] = 0x20;
         // response_array[27] = 0x00;
-        response_array[24] = 0x21;
-        response_array[25] = 0x00;
-        response_array[26] = 0x23;
-        response_array[27] = 0x00;
-        response_array_size = 28;
+        response_array[28] = 0x21;
+        response_array[29] = 0x00;
+        response_array[30] = 0x23;
+        response_array[31] = 0x00;
+        response_array_size = 32;
       }
       int level;
       // Battery level in %
@@ -446,7 +445,6 @@ class MyCallbacks : public BLECharacteristicCallbacks
           // check if layout exists
           if (write_value[3] == CRITICAL_INFO_LAYOUT || write_value[3] == NON_CRITICAL_INFO_LAYOUT)
           {
-            Serial.println("Page layout set to:");
             pages[write_value[2]].setLayoutType(write_value[3]);
           }
 
@@ -512,7 +510,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
       // set unit string for page N, value M
       if (write_value[COMMAND_KEY] == 0x1B)
       {
-        response_array[0] = 0x21;
+        response_array[0] = 0x1B;
         response_array[1] = 0x00;
         // accepted
         response_array[2] = 0x00;
@@ -552,7 +550,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
       // set description string for page N, value M
       if (write_value[COMMAND_KEY] == 0x1C)
       {
-        response_array[0] = 0x21;
+        response_array[0] = 0x1C;
         response_array[1] = 0x00;
         // accepted
         response_array[2] = 0x00;
@@ -592,7 +590,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
       // set color for page N, value M
       if (write_value[COMMAND_KEY] == 0x1D)
       {
-        response_array[0] = 0x21;
+        response_array[0] = 0x1D;
         response_array[1] = 0x00;
         // accepted
         response_array[2] = 0x00;
@@ -639,6 +637,27 @@ class MyCallbacks : public BLECharacteristicCallbacks
         {
           // page doesn't exist error code
           response_array[2] = 0x05;
+        }
+      }
+
+      // set backlight level
+      if (write_value[COMMAND_KEY] == 0x1E)
+      {
+        response_array[0] = 0x1E;
+        response_array[1] = 0x00;
+        // accepted
+        response_array[2] = 0x00;
+        response_array[3] = 0x00;
+        response_array_size = 4;
+        // check if correct brightness
+        if (write_value[2] >= 0 && write_value[2] <= 255)
+        {
+          ttgo->setBrightness(write_value[2]);
+        }
+        else
+        {
+          // backlight value doesn't exist error code
+          response_array[2] = 0x14;
         }
       }
 
@@ -850,10 +869,6 @@ void set_alarm_layout(void)
 
   updateBatIcon(LV_ICON_CALCULATION);
 
-  ttgo->setBrightness(test_brightness);
-  test_brightness += 30;
-  if (test_brightness > 240)
-    test_brightness = 0;
   ttgo->motor->onec();
 }
 
@@ -942,36 +957,35 @@ void setup()
   Serial.begin(115200);
   Serial.println("Start");
 
-  pages[0].values[0].setValue(123);
-  pages[0].values[0].setDesc("Gas level", 9);
-  pages[0].values[0].setUnit("ppm", 3);
-  pages[0].values[0].setColor(TFT_RED);
-  pages[0].values[1].setValue(67);
-  pages[0].values[1].setDesc("Infr sensor", 11);
-  pages[0].values[1].setUnit("%", 1);
-  pages[0].values[2].setValue(89);
-  pages[0].values[2].setDesc("Left",4);
-  pages[0].values[2].setUnit("C",1);
-  pages[0].values[3].setValue(35);
-  pages[0].values[3].setDesc("Right",5);
-  pages[0].values[3].setUnit("C",1);
-  pages[0].values[4].setValue(0);
-  pages[0].values[4].setDesc("Boots",5);
-  pages[0].values[4].setUnit("",0);
-  pages[1].values[0].setValue(31);
-  pages[1].values[0].setDesc("Temp Air",8);
-  pages[1].values[0].setUnit("C",1);
-  pages[1].values[1].setValue(45);
-  pages[1].values[1].setDesc("Temp In",7);
-  pages[1].values[1].setUnit("C",1);
-  pages[1].values[2].setValue(132);
-  pages[1].values[2].setDesc("Press",5);
-  pages[1].values[2].setUnit("hPa",3);
-  pages[1].values[3].setValue(67);
-  pages[1].values[3].setDesc("Heart rate",10);
-  pages[1].values[3].setUnit("BPM",3);
-
-  pages[1].setLayoutType(NON_CRITICAL_INFO_LAYOUT);
+  // pages[0].values[0].setValue(123);
+  // pages[0].values[0].setDesc("Gas level", 9);
+  // pages[0].values[0].setUnit("ppm", 3);
+  // pages[0].values[0].setColor(TFT_RED);
+  // pages[0].values[1].setValue(67);
+  // pages[0].values[1].setDesc("Infr sensor", 11);
+  // pages[0].values[1].setUnit("%", 1);
+  // pages[0].values[2].setValue(89);
+  // pages[0].values[2].setDesc("Left", 4);
+  // pages[0].values[2].setUnit("C", 1);
+  // pages[0].values[3].setValue(35);
+  // pages[0].values[3].setDesc("Right", 5);
+  // pages[0].values[3].setUnit("C", 1);
+  // pages[0].values[4].setValue(0);
+  // pages[0].values[4].setDesc("Boots", 5);
+  // pages[0].values[4].setUnit("", 0);
+  // pages[1].values[0].setValue(31);
+  // pages[1].values[0].setDesc("Temp Air", 8);
+  // pages[1].values[0].setUnit("C", 1);
+  // pages[1].values[1].setValue(45);
+  // pages[1].values[1].setDesc("Temp In", 7);
+  // pages[1].values[1].setUnit("C", 1);
+  // pages[1].values[2].setValue(132);
+  // pages[1].values[2].setDesc("Press", 5);
+  // pages[1].values[2].setUnit("hPa", 3);
+  // pages[1].values[3].setValue(67);
+  // pages[1].values[3].setDesc("Heart rate", 10);
+  // pages[1].values[3].setUnit("BPM", 3);
+  // pages[1].setLayoutType(NON_CRITICAL_INFO_LAYOUT);
 
   // Get watch instance
   ttgo = TTGOClass::getWatch();
