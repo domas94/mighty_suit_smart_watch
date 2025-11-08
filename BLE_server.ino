@@ -61,6 +61,7 @@ bool irq = false;
 uint16_t vibration_time = 0;
 bool init_done = true;
 bool refresh_screen = false;
+uint32_t vibration_interval = millis();
 
 byte new_layout;
 
@@ -175,6 +176,7 @@ public:
   {
     return _value;
   }
+
   void setValueDigits(byte new_value)
   {
     _value_digits = new_value;
@@ -278,7 +280,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
   {
     std::string write_value = write_characteristic->getValue();
     int response_array_size = 0;
-    int value_for_page = 0;
+    int temp = 0;
     String str_for_value;
 
     if (write_value.length() > 0)
@@ -328,13 +330,13 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[25] = 0x00;
         response_array[26] = 0x1E;
         response_array[27] = 0x00;
-        // response_array[26] = 0x20;
-        // response_array[27] = 0x00;
-        response_array[28] = 0x21;
+        response_array[28] = 0x1F;
         response_array[29] = 0x00;
-        response_array[30] = 0x23;
+        response_array[30] = 0x21;
         response_array[31] = 0x00;
-        response_array_size = 32;
+        response_array[32] = 0x23;
+        response_array[33] = 0x00;
+        response_array_size = 34;
       }
       int level;
       // Battery level in %
@@ -382,8 +384,6 @@ class MyCallbacks : public BLECharacteristicCallbacks
         if (write_value[2] > 0 && write_value[2] < 9)
         {
           max_pages = write_value[2];
-          Serial.println("Max page number set to");
-          Serial.println(max_pages + 1);
         }
         // Number of pages too low
         if (write_value[2] < 1)
@@ -661,6 +661,31 @@ class MyCallbacks : public BLECharacteristicCallbacks
         }
       }
 
+      // set vibration time
+      if (write_value[COMMAND_KEY] == 0x1F)
+      {
+        response_array[0] = 0x1E;
+        response_array[1] = 0x00;
+        // accepted
+        response_array[2] = 0x00;
+        response_array[3] = 0x00;
+        response_array_size = 4;
+
+        temp += write_value[2] << 0;
+        temp += write_value[3] << 8;
+        // check if correct period
+        if (temp >= 0 && temp <= 10000)
+        {
+          vibration_time = temp;
+          vibration_interval = milis();
+        }
+        else
+        {
+          // vibration period too long
+          response_array[2] = 0x15;
+        }
+      }
+
       // set value for page N, value M
       if (write_value[COMMAND_KEY] == 0x21)
       {
@@ -676,13 +701,13 @@ class MyCallbacks : public BLECharacteristicCallbacks
           // check if value exists
           if (write_value[3] > 0 && write_value[3] <= pages[write_value[2]].getPageValueCnt())
           {
-            value_for_page += write_value[4] << 0;
-            value_for_page += write_value[5] << 8;
-            value_for_page += write_value[6] << 16;
-            value_for_page += write_value[7] << 24;
+            temp += write_value[4] << 0;
+            temp += write_value[5] << 8;
+            temp += write_value[6] << 16;
+            temp += write_value[7] << 24;
             pages[write_value[2]]
                 .values[write_value[3]]
-                .setValue(value_for_page);
+                .setValue(temp);
           }
           else
           {
@@ -1086,10 +1111,14 @@ void loop()
         set_layout_1();
       }
 
-      // if (vibration)
-      // {
-      //   ttgo->motor->onec();
-      // }
+      if (vibration_time)
+      {
+        ttgo->motor->onec();
+        if (millis() - vibration_interval > vibration_time)
+        {
+          vibration_time = 0;
+        }
+      }
     }
   }
   if (digitalRead(TP_INT) == LOW)
