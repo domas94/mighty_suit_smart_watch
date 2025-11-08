@@ -34,12 +34,12 @@ bool irq = false;
 uint8_t test_brightness = 0;
 uint16_t vibration_time = 0;
 bool init_done = false;
+bool refresh_screen = false;
 
-byte current_layout;
 byte new_layout;
 
 byte max_pages = 8;
-byte current_page = 1;
+byte current_page = 0;
 
 BLECharacteristic *read_characteristic;
 
@@ -54,6 +54,7 @@ uint8_t response_array[131];
 #define NON_CRITICAL_INFO_LAYOUT 1
 #define ALARM_LAYOUT 8
 #define TIME_LAYOUT 9
+#define MAX_STR_LEN 12
 
 typedef enum
 {
@@ -79,7 +80,6 @@ void updateBatIcon(lv_icon_battery_t icon)
   int level = ttgo->power->getBattPercentage();
   w = level / 10 * 2 + 10;
   // clear previous value
-  tft->fillRoundRect(x - 40, y, w + 40, h + 10, 3, TFT_BLACK);
   tft->setTextColor(TFT_YELLOW, TFT_BLACK);
 
   if (icon == LV_ICON_CALCULATION)
@@ -129,6 +129,7 @@ public:
   void setValue(int new_value)
   {
     _value = new_value;
+    refresh_screen = true;
   }
 
   int getValue()
@@ -144,18 +145,34 @@ public:
   {
     return _value_digits;
   }
-  void setDesc(String new_desc)
+  void setDesc(String new_desc, int len)
   {
-    _desc = new_desc;
+    if (len < MAX_STR_LEN)
+    {
+      // for (int i = 0; i < len; i++)
+      {
+        _desc = new_desc;
+        refresh_screen = true;
+      }
+      // _desc[MAX_STR_LEN] = '\0';
+    }
   }
 
   String getDesc()
   {
     return _desc;
   }
-  void setUnit(String new_unit)
+  void setUnit(String new_unit, int len)
   {
-    _unit = new_unit;
+    if (len < MAX_STR_LEN)
+    {
+      // for (int i = 0; i < len; i++)
+      {
+        _unit = new_unit;
+        refresh_screen = true;
+      }
+      //_unit[MAX_STR_LEN] = '\0';
+    }
   }
 
   String getUnit()
@@ -223,6 +240,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
     std::string write_value = write_characteristic->getValue();
     int response_array_size = 0;
     int value_for_page = 0;
+    String str_for_value;
 
     if (write_value.length() > 0)
     {
@@ -263,21 +281,21 @@ class MyCallbacks : public BLECharacteristicCallbacks
         response_array[17] = 0x00;
         response_array[18] = 0x1A;
         response_array[19] = 0x00;
-        // response_array[18] = 0x1B;
-        // response_array[19] = 0x00;
-        // response_array[20] = 0x1C;
-        // response_array[21] = 0x00;
+        response_array[20] = 0x1B;
+        response_array[21] = 0x00;
+        response_array[22] = 0x1C;
+        response_array[23] = 0x00;
         // response_array[22] = 0x1D;
         // response_array[23] = 0x00;
         // response_array[24] = 0x1E;
         // response_array[25] = 0x00;
         // response_array[26] = 0x20;
         // response_array[27] = 0x00;
-        response_array[20] = 0x21;
-        response_array[21] = 0x00;
-        response_array[22] = 0x23;
-        response_array[23] = 0x00;
-        response_array_size = 24;
+        response_array[24] = 0x21;
+        response_array[25] = 0x00;
+        response_array[26] = 0x23;
+        response_array[27] = 0x00;
+        response_array_size = 28;
       }
       int level;
       // Battery level in %
@@ -451,6 +469,86 @@ class MyCallbacks : public BLECharacteristicCallbacks
         }
       }
 
+      // set unit string for page N, value M
+      if (write_value[COMMAND_KEY] == 0x1B)
+      {
+        response_array[0] = 0x21;
+        response_array[1] = 0x00;
+        // accepted
+        response_array[2] = 0x00;
+        response_array[3] = 0x00;
+        response_array_size = 4;
+        // check if page exists
+        if (write_value[2] >= 0 && write_value[2] <= max_pages)
+        {
+          // check if value exists
+          if (write_value[3] > 0 && write_value[3] <= pages[write_value[2]].getPageValueCnt())
+          {
+            // check if string too long
+            if (write_value[4] < MAX_STR_LEN - 1)
+            {
+              for (int i = 0; i < write_value[4]; i++)
+              {
+                str_for_value += write_value[i + 5];
+              }
+              pages[write_value[2]]
+                  .values[write_value[3]]
+                  .setUnit(str_for_value, write_value[4]);
+            }
+          }
+          else
+          {
+            // value doesn't exist error code
+            response_array[2] = 0x11;
+          }
+        }
+        else
+        {
+          // page doesn't exist error code
+          response_array[2] = 0x05;
+        }
+      }
+
+      // set description string for page N, value M
+      if (write_value[COMMAND_KEY] == 0x1C)
+      {
+        response_array[0] = 0x21;
+        response_array[1] = 0x00;
+        // accepted
+        response_array[2] = 0x00;
+        response_array[3] = 0x00;
+        response_array_size = 4;
+        // check if page exists
+        if (write_value[2] >= 0 && write_value[2] <= max_pages)
+        {
+          // check if value exists
+          if (write_value[3] > 0 && write_value[3] <= pages[write_value[2]].getPageValueCnt())
+          {
+            // check if string too long
+            if (write_value[4] < MAX_STR_LEN - 1)
+            {
+              for (int i = 0; i < write_value[4]; i++)
+              {
+                str_for_value += write_value[i + 5];
+              }
+              pages[write_value[2]]
+                  .values[write_value[3]]
+                  .setDesc(str_for_value, write_value[4]);
+            }
+          }
+          else
+          {
+            // value doesn't exist error code
+            response_array[2] = 0x11;
+          }
+        }
+        else
+        {
+          // page doesn't exist error code
+          response_array[2] = 0x05;
+        }
+      }
+
       // set value for page N, value M
       if (write_value[COMMAND_KEY] == 0x21)
       {
@@ -515,16 +613,16 @@ class MyCallbacks : public BLECharacteristicCallbacks
 void set_layout_0(void)
 {
   int16_t value_w;
-  if (current_layout != CRITICAL_INFO_LAYOUT)
+  if (refresh_screen)
   {
-    current_layout = CRITICAL_INFO_LAYOUT;
     tft->fillScreen(TFT_BLACK);
+    refresh_screen = false;
   }
   updateBatIcon(LV_ICON_CALCULATION);
   tft->setTextColor(TFT_YELLOW, TFT_BLACK);
 
   tft->setTextSize(2);
-  tft->drawString(String(current_page), 210, 130);
+  tft->drawString(String(current_page + 1), 210, 130);
 
   if (pages[current_page].getPageValueCnt() > 0)
   {
@@ -572,7 +670,8 @@ void set_layout_0(void)
     tft->setTextSize(2);
     tft->drawString(pages[current_page].values[4].getDesc(), 0, 200);
   }
-
+  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 140, 200);
+  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 30, 200);
   drawSTATUS(deviceConnected);
 }
 
@@ -580,16 +679,16 @@ void set_layout_0(void)
 void set_layout_1(void)
 {
   int16_t value_w;
-  if (current_layout != NON_CRITICAL_INFO_LAYOUT)
+  if (refresh_screen)
   {
-    current_layout = NON_CRITICAL_INFO_LAYOUT;
     tft->fillScreen(TFT_BLACK);
+    refresh_screen = false;
   }
   updateBatIcon(LV_ICON_CALCULATION);
   tft->setTextColor(TFT_YELLOW, TFT_BLACK);
 
   tft->setTextSize(2);
-  tft->drawString(String(current_page), 210, 130);
+  tft->drawString(String(current_page + 1), 210, 130);
   if (pages[current_page].getPageValueCnt() > 0)
   {
     tft->drawString(String(pages[current_page].values[0].getValue()).substring(0, pages[current_page].values[0].getValueDigits()), 123, 10);
@@ -622,22 +721,26 @@ void set_layout_1(void)
     tft->setTextSize(2);
     tft->drawString(pages[current_page].values[3].getDesc(), 80, 200);
   }
+  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 140, 200);
+  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 30, 200);
   drawSTATUS(deviceConnected);
 }
 
 // set alarm layout
 void set_alarm_layout(void)
 {
-  if (current_layout != ALARM_LAYOUT)
+  if (refresh_screen)
   {
-    current_layout = ALARM_LAYOUT;
     tft->fillScreen(TFT_BLACK);
     tft->setSwapBytes(true);
     tft->pushImage(56, 56, 128, 128, head_fire);
+    refresh_screen = false;
   }
+  tft->setTextSize(1);
+  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 140, 200);
+  tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 30, 200);
   if (!(mp3->isRunning()))
   {
-    Serial.println("STARTING MP3");
     mp3->begin(id3, out);
   }
 
@@ -648,19 +751,6 @@ void set_alarm_layout(void)
   if (test_brightness > 240)
     test_brightness = 0;
   ttgo->motor->onec();
-}
-
-// set time layout
-void set_time_layout(void)
-{
-
-  if (current_layout != TIME_LAYOUT)
-  {
-    // current_layout = TIME_LAYOUT;
-    tft->setTextSize(1);
-    tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 140, 200);
-    tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 30, 200);
-  }
 }
 
 class MyServerCallback : public BLEServerCallbacks
@@ -749,11 +839,11 @@ void setup()
   Serial.println("Start");
 
   // pages[0].values[0].setValue(123);
-  // pages[0].values[0].setDesc("Gas level");
-  // pages[0].values[0].setUnit("ppm");
+  // pages[0].values[0].setDesc("Gas level", 9);
+  // pages[0].values[0].setUnit("ppm", 3);
   // pages[0].values[1].setValue(67);
-  // pages[0].values[1].setDesc("Infr sensor");
-  // pages[0].values[1].setUnit("%");
+  // pages[0].values[1].setDesc("Infr sensor", 11);
+  // pages[0].values[1].setUnit("%", 1);
   // pages[0].values[2].setValue(89);
   // pages[0].values[2].setDesc("Left");
   // pages[0].values[2].setUnit("C");
@@ -866,7 +956,6 @@ void loop()
     {
       if (fire_alarm_flag)
       {
-        set_time_layout();
         set_alarm_layout();
       }
       else if (pages[current_page].getLayout() == CRITICAL_INFO_LAYOUT)
@@ -890,8 +979,8 @@ void loop()
     {
       delay(100);
       current_page++;
-      tft->fillScreen(TFT_BLACK);
-      if (current_page > max_pages)
+      refresh_screen = true;
+      if (current_page > max_pages - 1)
       {
         fire_alarm_flag = true;
         current_page = 0;
@@ -922,9 +1011,10 @@ void loop()
       ttgo->power->setPowerOutPut(AXP202_DCDC2, false);
 
       // TOUCH SCREEN  Wakeup source
-      // esp_sleep_enable_ext1_wakeup(GPIO_SEL_38, ESP_EXT1_WAKEUP_ALL_LOW);
+      esp_sleep_enable_ext1_wakeup(GPIO_SEL_38, ESP_EXT1_WAKEUP_ALL_LOW);
       // PEK KEY  Wakeup source
-      esp_sleep_enable_ext1_wakeup(GPIO_SEL_35, ESP_EXT1_WAKEUP_ALL_LOW);
+      // doesn't always work - maybe debouncing?
+      // esp_sleep_enable_ext1_wakeup(GPIO_SEL_35, ESP_EXT1_WAKEUP_ALL_LOW);
       esp_deep_sleep_start();
     }
     ttgo->power->clearIRQ();
