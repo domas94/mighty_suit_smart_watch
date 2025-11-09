@@ -55,6 +55,7 @@
 #define NON_CRITICAL_INFO_LAYOUT 1
 #define ALARM_LAYOUT 8
 #define TIME_LAYOUT 9
+// treba biti 8 max str len
 #define MAX_STR_LEN 12
 #define NO_ALARM 0
 #define BOOT_ON_FIRE 1
@@ -912,7 +913,6 @@ void set_layout_0(void)
   tft->setTextSize(1);
   tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 0, 150);
   tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 0, 130);
-  drawSTATUS(deviceConnected);
   // tft->setTextColor(random(0xFFFF), TFT_BLACK);
   tft->setCursor(xoffset, 100);
   tft->print("DClick:");
@@ -920,6 +920,7 @@ void set_layout_0(void)
   tft->setCursor(xoffset, 80);
   tft->print("Steps:");
   tft->print(stepCount);
+  drawSTATUS(deviceConnected);
 }
 
 // non critical info layout
@@ -975,7 +976,6 @@ void set_layout_1(void)
   tft->setTextSize(1);
   tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 60, 140);
   tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 0, 140);
-  drawSTATUS(deviceConnected);
   // tft->setTextColor(random(0xFFFF), TFT_BLACK);
   tft->setCursor(xoffset, 200);
   tft->print("DClick:");
@@ -983,6 +983,7 @@ void set_layout_1(void)
   tft->setCursor(xoffset, 180);
   tft->print("Steps:");
   tft->print(stepCount);
+  drawSTATUS(deviceConnected);
 }
 
 // set alarm layout
@@ -1002,6 +1003,7 @@ void set_alarm_layout(void)
     refresh_screen = false;
   }
   tft->setTextSize(1);
+  tft->setTextColor(TFT_YELLOW, TFT_BLACK);
   tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 140, 200);
   tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 30, 200);
   if (!(mp3->isRunning()))
@@ -1010,8 +1012,6 @@ void set_alarm_layout(void)
   }
 
   updateBatIcon(LV_ICON_CALCULATION);
-
-  ttgo->motor->onec();
 }
 
 class MyServerCallback : public BLEServerCallbacks
@@ -1290,7 +1290,6 @@ void setup()
   // i2s_set_pin(I2S_NUM_0, &i2s_cfg);
   // i2s_set_clk(I2S_NUM_0, 44100, I2S_BITS_PER_SAMPLE_16BIT, I2S_CHANNEL_MONO);
   // tft->fillScreen(TFT_BLACK);
-
 }
 
 void loop()
