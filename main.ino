@@ -74,7 +74,7 @@ BMA *sensor;
 uint8_t prevRotation;
 uint8_t rotation;
 
-bool init_done = false;
+bool init_done = true;
 bool deviceConnected = false;
 uint8_t alarm_icon = NO_ALARM;
 bool alarm_flag = false;
@@ -96,8 +96,10 @@ BLECharacteristic *read_characteristic;
 uint8_t response_array[131];
 uint32_t clickCount = 0;
 uint32_t stepCount = 0;
-int16_t xoffset = 30;
+int16_t xoffset = 190;
 uint8_t brightness_level = 255;
+bool batt_vbus_in = false;
+bool batt_vbus_out = false;
 
 typedef enum
 {
@@ -136,6 +138,21 @@ void updateBatIcon(lv_icon_battery_t icon)
     {
       color = TFT_GREEN;
     }
+  }
+  else if (icon == VBUS_PLUGIN)
+  {
+    batt_vbus_in = true;
+    batt_vbus_out = false;
+  }
+  else if (icon == VBUS_REMOVE)
+  {
+    batt_vbus_in = false;
+    batt_vbus_out = true;
+  }
+
+  if (batt_vbus_in)
+  {
+    color = TFT_BLUE;
   }
 
   str = String(level) + "%";
@@ -867,6 +884,13 @@ void set_layout_0(void)
   tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 0, 150);
   tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 0, 130);
   drawSTATUS(deviceConnected);
+  //tft->setTextColor(random(0xFFFF), TFT_BLACK);
+  tft->setCursor(xoffset, 100);
+  tft->print("DClick:");
+  tft->print(clickCount);
+  tft->setCursor(xoffset, 80);
+  tft->print("Steps:");
+  tft->print(stepCount);
 }
 
 // non critical info layout
@@ -923,6 +947,13 @@ void set_layout_1(void)
   tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_DD_MM_YYYY), 60, 140);
   tft->drawString(rtc->formatDateTime(PCF_TIMEFORMAT_HMS), 0, 140);
   drawSTATUS(deviceConnected);
+  //tft->setTextColor(random(0xFFFF), TFT_BLACK);
+  tft->setCursor(xoffset, 200);
+  tft->print("DClick:");
+  tft->print(clickCount);
+  tft->setCursor(xoffset, 180);
+  tft->print("Steps:");
+  tft->print(stepCount);
 }
 
 // set alarm layout
@@ -1067,7 +1098,7 @@ void setup()
   // pages[1].values[3].setValue(67);
   // pages[1].values[3].setDesc("Heart rate", 10);
   // pages[1].values[3].setUnit("BPM", 3);
-  // pages[1].setLayoutType(NON_CRITICAL_INFO_LAYOUT);
+  pages[1].setLayoutType(NON_CRITICAL_INFO_LAYOUT);
 
   // Get watch instance
   ttgo = TTGOClass::getWatch();
@@ -1211,24 +1242,24 @@ void loop()
   if (millis() - interval > 1000)
   {
 
-    ttgo->power->readIRQ();
-    if (ttgo->power->isVbusPlugInIRQ())
-    {
-      updateBatIcon(VBUS_PLUGIN);
-    }
-    if (ttgo->power->isVbusRemoveIRQ())
-    {
-      updateBatIcon(VBUS_REMOVE);
-    }
-    if (ttgo->power->isChargingDoneIRQ())
-    {
-      updateBatIcon(LV_ICON_BAT_FULL);
-    }
-    if (ttgo->power->isPEKShortPressIRQ())
-    {
-      ttgo->power->clearIRQ();
-    }
-    ttgo->power->clearIRQ();
+    // ttgo->power->readIRQ();
+    // if (ttgo->power->isVbusPlugInIRQ())
+    // {
+    //   updateBatIcon(VBUS_PLUGIN);
+    // }
+    // if (ttgo->power->isVbusRemoveIRQ())
+    // {
+    //   updateBatIcon(VBUS_REMOVE);
+    // }
+    // if (ttgo->power->isChargingDoneIRQ())
+    // {
+    //   updateBatIcon(LV_ICON_BAT_FULL);
+    // }
+    // if (ttgo->power->isPEKShortPressIRQ())
+    // {
+    //   ttgo->power->clearIRQ();
+    // }
+    // ttgo->power->clearIRQ();
 
     interval = millis();
     if (init_done)
@@ -1260,7 +1291,7 @@ void loop()
   {
     if (ttgo->getTouch(x, y))
     {
-      delay(200);
+      delay(100);
       current_page++;
       refresh_screen = true;
       if (current_page > max_pages - 1)
@@ -1280,68 +1311,55 @@ void loop()
 
     } while (!rlst);
     // Check if it is a step interrupt
-    // if (sensor->isStepCounter())
-    // {
-    //   // Get step data from register
-    //   stepCount = sensor->getCounter();
-    //   tft->setTextColor(random(0xFFFF), TFT_BLACK);
-    //   tft->setCursor(xoffset, 118);
-    //   tft->print("StepCount:");
-    //   tft->print(stepCount);
-    // }
+    if (sensor->isStepCounter())
+    {
+      // Get step data from register
+      stepCount = sensor->getCounter();
+    }
     // The wrist must be worn correctly, otherwise the data will not come out
     if (sensor->isTilt())
     {
-      tft->setTextColor(random(0xFFFF), TFT_BLACK);
-      tft->setCursor(xoffset, 160);
       activity = true;
     }
     // Double-click interrupt
-    // if (sensor->isDoubleClick())
-    // {
-    //   Serial.println("isDoubleClick");
-    //   tft->setTextColor(random(0xFFFF), TFT_BLACK);
-    //   tft->setCursor(xoffset, 202);
-    //   tft->print("isDoubleClick:");
-    //   tft->print(++clickCount);
-    // }
+    if (sensor->isDoubleClick())
+    {
+      ++clickCount;
+    }
   }
 
-  // rotation = sensor->direction();
-  // if (prevRotation != rotation)
-  // {
-  //   prevRotation = rotation;
-  //   Serial.printf("tft:%u sens:%u ", tft->getRotation(), rotation);
-  //   switch (rotation)
-  //   {
-  //   case DIRECTION_DISP_DOWN:
-  //     // No use
-  //     break;
-  //   case DIRECTION_DISP_UP:
-  //     // No use
-  //     break;
-  //   case DIRECTION_BOTTOM_EDGE:
-  //     Serial.printf(" set %u\n", WATCH_SCREEN_BOTTOM_EDGE);
-  //     tft->setRotation(WATCH_SCREEN_BOTTOM_EDGE);
-  //     break;
-  //   case DIRECTION_TOP_EDGE:
-  //     Serial.printf(" set %u\n", WATCH_SCREEN_TOP_EDGE);
-  //     tft->setRotation(WATCH_SCREEN_TOP_EDGE);
-  //     break;
-  //   case DIRECTION_RIGHT_EDGE:
-  //     Serial.printf(" set %u\n", WATCH_SCREEN_RIGHT_EDGE);
-  //     tft->setRotation(WATCH_SCREEN_RIGHT_EDGE);
-  //     break;
-  //   case DIRECTION_LEFT_EDGE:
-  //     Serial.printf(" set %u\n", WATCH_SCREEN_LEFT_EDGE);
-  //     tft->setRotation(WATCH_SCREEN_LEFT_EDGE);
-  //     break;
-  //   default:
-  //     break;
-  //   }
-  //   tft->fillScreen(TFT_BLACK);
-  //   tft->drawCentreString("T-Watch", 120, 120, 4);
-  // }
+  rotation = sensor->direction();
+  if (prevRotation != rotation)
+  {
+    prevRotation = rotation;
+    switch (rotation)
+    {
+    case DIRECTION_DISP_DOWN:
+      // No use
+      break;
+    case DIRECTION_DISP_UP:
+      // No use
+      break;
+    case DIRECTION_BOTTOM_EDGE:
+      refresh_screen = true;
+      tft->setRotation(WATCH_SCREEN_BOTTOM_EDGE);
+      break;
+    case DIRECTION_TOP_EDGE:
+      refresh_screen = true;
+      tft->setRotation(WATCH_SCREEN_TOP_EDGE);
+      break;
+    case DIRECTION_RIGHT_EDGE:
+      refresh_screen = true;
+      tft->setRotation(WATCH_SCREEN_RIGHT_EDGE);
+      break;
+    case DIRECTION_LEFT_EDGE:
+      refresh_screen = true;
+      tft->setRotation(WATCH_SCREEN_LEFT_EDGE);
+      break;
+    default:
+      break;
+    }
+  }
   if (activity)
   {
     activity = false;
